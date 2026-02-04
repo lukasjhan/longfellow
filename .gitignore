@@ -1,0 +1,30 @@
+# --- upstream clone (reproducible via git clone; do not vendor 40MB) ---
+/longfellow-zk/
+
+# --- C++ build outputs ---
+/build/
+build_mdoc_test.log
+
+# --- generated clang toolchain wrappers (machine-specific paths) ---
+/.toolchain/
+
+# --- compiled CLI binary & objects ---
+playground/native/longfellow_cli
+playground/native/*.o
+
+# --- node ---
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+
+# --- generated playground artifacts (proofs, circuits, etc.) ---
+playground/artifacts/*
+!playground/artifacts/.gitkeep
+
+# --- third-party papers (links in references/README.md) ---
+references/*.pdf
+
+# --- editor / OS / tooling ---
+.claude/
+.DS_Store
+*.swp
