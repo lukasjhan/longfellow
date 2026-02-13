@@ -9,6 +9,7 @@
     "demo": "node src/demo.js",
     "issue": "node src/playground.js issue",
     "present": "node src/playground.js present",
-    "verify": "node src/playground.js verify"
+    "verify": "node src/playground.js verify",
+    "decode": "node src/decode-mdoc.js"
   }
 }

@@ -60,6 +60,21 @@ pnpm run verify     # 증명 검증 (ACCEPT면 exit 0)
 # C++ 상세 로그 보기:          DEBUG=1 pnpm run demo
 ```
 
+### mdoc 안에 무엇이 들어있나 보기 (`decode`)
+
+발급자가 서명해 넣은 속성(= ZK로 공개 가능한 후보)을 확인합니다(의존성 없는
+CBOR 디코더 내장):
+
+```bash
+pnpm run decode                       # artifacts/mdoc.bin 디코드
+node src/decode-mdoc.js /path/x.bin   # 임의 mdoc 파일
+```
+
+출력에는 issuer-signed 속성(id=값), MSO의 valueDigests 개수·유효기간,
+deviceKey 유무가 표시됩니다. 핵심: **MSO digest 수 ≥ 실제 들어있는
+IssuerSignedItem 수** 일 수 있고, ZK 증명은 **preimage(IssuerSignedItem)가
+존재하는 속성만** 가능합니다.
+
 ### 예상 출력 (요지)
 
 ```
