@@ -20,6 +20,7 @@ pnpm-debug.log*
 # --- generated playground artifacts (proofs, circuits, etc.) ---
 playground/artifacts/*
 !playground/artifacts/.gitkeep
+playground/artifacts-multi/
 
 # --- third-party papers (links in references/README.md) ---
 references/*.pdf

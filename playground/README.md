@@ -49,6 +49,15 @@ pnpm run build:native        # == bash native/build.sh
 pnpm run demo
 ```
 
+**다속성 동시 증명** (예제 #3 = Sprind-Funke, 5속성 보유):
+
+```bash
+pnpm run demo:multi                                  # family_name + age_over_18 (기본)
+node src/demo-multi.js 3 family_name,height,age_over_18   # 혼합 타입 3속성
+```
+mdoc에서 각 속성의 **raw CBOR 값을 그대로 추출**해 `--attrs N` 회로로 한 번에
+공개하고, 한 속성 값만 위조하면 거부되는 것까지 보여줍니다.
+
 단계별 실행도 가능합니다(상태는 `artifacts/`에 저장):
 
 ```bash

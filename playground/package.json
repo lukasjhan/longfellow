@@ -7,6 +7,7 @@
   "scripts": {
     "build:native": "bash native/build.sh",
     "demo": "node src/demo.js",
+    "demo:multi": "node src/demo-multi.js",
     "issue": "node src/playground.js issue",
     "present": "node src/playground.js present",
     "verify": "node src/playground.js verify",
