@@ -1,36 +1,32 @@
 // Step-by-step playground CLI. State is persisted in artifacts/ so each step
 // can be run independently:
 //
-//   node src/playground.js issue     # load example mdoc + build circuit
-//   node src/playground.js present   # produce the ZK proof
+//   node src/playground.js issue     # load example mdoc (issuance)
+//   node src/playground.js present   # produce the ZK proof (uses cached circuit)
 //   node src/playground.js verify    # verify the ZK proof
 //
-// (or just: pnpm run issue / present / verify)
+// (or: pnpm run issue / present / verify). Circuits come from the cache —
+// run "pnpm run circuits" once first.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import {
   ARTIFACTS,
   issueExample,
-  generateCircuit,
   present,
   verify,
   ATTR_AGE_OVER_18,
 } from './longfellow.js';
+import { ensureCircuit } from './circuits.js';
 
 const ART = ARTIFACTS;
 const p = (f) => path.join(ART, f);
-const attributes = [ATTR_AGE_OVER_18];
+const attributes = [ATTR_AGE_OVER_18]; // single attribute -> N=1 circuit
 
 function loadIssued() {
   if (!fs.existsSync(p('issued.json')))
     throw new Error('run "issue" first (artifacts/issued.json missing)');
   return JSON.parse(fs.readFileSync(p('issued.json'), 'utf8'));
-}
-function loadSpec() {
-  if (!fs.existsSync(p('spec.json')))
-    throw new Error('run "issue" first (artifacts/spec.json missing)');
-  return JSON.parse(fs.readFileSync(p('spec.json'), 'utf8'));
 }
 
 function doIssue() {
@@ -38,16 +34,14 @@ function doIssue() {
   const index = Number(process.argv[3] ?? 0);
   const issued = issueExample({ index, outdir: ART });
   console.log('issued example mdoc:', JSON.stringify(issued));
-  const spec = generateCircuit({ attrs: 1, out: p('circuit.bin') });
-  fs.writeFileSync(p('spec.json'), JSON.stringify(spec, null, 2));
-  console.log('circuit ready    :', JSON.stringify(spec));
 }
 
 function doPresent() {
   const issued = loadIssued();
-  const spec = loadSpec();
+  const { circuit, spec, cached } = ensureCircuit(attributes.length);
+  console.log(`circuit (N=${attributes.length}): ${cached ? 'cached' : 'generated'} ${spec.circuit_hash.slice(0, 16)}…`);
   const r = present({
-    circuit: p('circuit.bin'),
+    circuit,
     mdoc: p('mdoc.bin'),
     transcript: p('transcript.bin'),
     pkx: issued.pkx,
@@ -64,9 +58,9 @@ function doPresent() {
 
 function doVerify() {
   const issued = loadIssued();
-  const spec = loadSpec();
+  const { circuit, spec } = ensureCircuit(attributes.length);
   const r = verify({
-    circuit: p('circuit.bin'),
+    circuit,
     transcript: p('transcript.bin'),
     pkx: issued.pkx,
     pky: issued.pky,

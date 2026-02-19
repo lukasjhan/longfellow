@@ -68,7 +68,9 @@ ZK로 증명"** 을 두 빌딩블록으로 해결합니다.
 ```bash
 cd playground
 pnpm run build:native     # 최초 1회: C++ 라이브러리 + CLI 빌드 (수 분)
-pnpm run demo             # issue → setup → present → verify → 변조거부 시연
+pnpm run circuits         # 최초 1회: N별 회로 사전 생성·캐시 (N=1~4, 약 1분)
+pnpm run demo             # issue → setup → present → verify → 변조거부 시연 (~2초)
+pnpm run demo:multi       # 다속성(예제3) 동시 증명
 ```
 
 단계별 실행 (상태는 `playground/artifacts/`에 저장):

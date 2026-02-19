@@ -45,9 +45,17 @@ cd playground
 # 1) C++ 라이브러리 + CLI 빌드 (최초 1회, 수 분 소요)
 pnpm run build:native        # == bash native/build.sh
 
-# 2) 전체 흐름 데모 (issue → setup → present → verify → tamper-reject)
-pnpm run demo
+# 2) N별 회로 사전 생성·캐시 (최초 1회, N=1~4 약 1분)
+pnpm run circuits            # circuits/circuit-<N>attr.bin + manifest.json
+
+# 3) 전체 흐름 데모 (issue → setup → present → verify → tamper-reject)
+pnpm run demo                # 캐시 사용 시 ~2초
 ```
+
+> 회로는 mdoc과 무관하게 **속성 개수 N에만** 의존하므로 한 번 만들어 재사용합니다.
+> `pnpm run circuits`로 N=1~4를 `circuits/`에 캐시해두면, 이후 present/verify는
+> 매번 ~14초 생성 없이 캐시를 골라 씁니다(데모 전체 ~2초). 회로를 미리 안 만들어도
+> 데모가 필요할 때 자동 생성·캐시합니다(`ensureCircuit`).
 
 **다속성 동시 증명** (예제 #3 = Sprind-Funke, 5속성 보유):
 

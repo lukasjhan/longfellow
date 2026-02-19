@@ -14,7 +14,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { issueExample, generateCircuit, present, verify } from './longfellow.js';
+import { issueExample, present, verify } from './longfellow.js';
+import { ensureCircuit } from './circuits.js';
 import { attributesOf, showValue } from './cbor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -50,14 +51,13 @@ async function main() {
   });
   console.log(`\n  → 동시에 공개할 속성 ${requested.length}개:`, requested.map((r) => r.id).join(', '));
 
-  // 3) SETUP — N-attribute circuit ------------------------------------------
-  step(3, `SETUP  — ${requested.length}-속성 회로 생성`);
-  const spec = generateCircuit({ attrs: requested.length, out: p('circuit.bin') });
-  if (!spec.ok) throw new Error('gencircuit failed: ' + JSON.stringify(spec));
-  console.log(`  ${spec.system} v${spec.version}, ${spec.num_attributes}-attr, ${spec.circuit_len}B, ${spec.gen_ms}ms`);
+  // 3) SETUP — cached N-attribute circuit -----------------------------------
+  step(3, `SETUP  — ${requested.length}-속성 회로 (캐시)`);
+  const { circuit, spec, cached } = ensureCircuit(requested.length);
+  console.log(`  ${cached ? '(cached)' : '(generated now)'} ${spec.system} v${spec.version}, ${spec.num_attributes}-attr, ${spec.circuit_len}B`);
 
   const common = {
-    circuit: p('circuit.bin'),
+    circuit,
     transcript: p('transcript.bin'),
     pkx: issued.pkx,
     pky: issued.pky,

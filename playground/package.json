@@ -6,6 +6,7 @@
   "description": "Node.js playground for google/longfellow-zk: issue (example) -> present (ZK prove) -> verify, driven via a thin C++ CLI subprocess.",
   "scripts": {
     "build:native": "bash native/build.sh",
+    "circuits": "node src/prebuild-circuits.js",
     "demo": "node src/demo.js",
     "demo:multi": "node src/demo-multi.js",
     "issue": "node src/playground.js issue",
