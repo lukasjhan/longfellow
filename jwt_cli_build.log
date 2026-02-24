@@ -1,0 +1,47 @@
+In file included from playground/native/jwt_cli.cc:37:
+In file included from longfellow-zk/lib/circuits/compiler/compiler.h:30:
+In file included from longfellow-zk/lib/sumcheck/circuit_id.h:23:
+longfellow-zk/lib/util/crypto.h:42:14: warning: 'SHA256_Init' is deprecated [-Wdeprecated-declarations]
+   42 |   SHA256() { SHA256_Init(&sha_); }
+      |              ^
+/usr/include/openssl/sha.h:73:1: note: 'SHA256_Init' has been explicitly marked deprecated here
+   73 | OSSL_DEPRECATEDIN_3_0 int SHA256_Init(SHA256_CTX *c);
+      | ^
+/usr/include/openssl/macros.h:182:49: note: expanded from macro 'OSSL_DEPRECATEDIN_3_0'
+  182 | #   define OSSL_DEPRECATEDIN_3_0                OSSL_DEPRECATED(3.0)
+      |                                                 ^
+/usr/include/openssl/macros.h:62:52: note: expanded from macro 'OSSL_DEPRECATED'
+   62 | #     define OSSL_DEPRECATED(since) __attribute__((deprecated))
+      |                                                    ^
+In file included from playground/native/jwt_cli.cc:37:
+In file included from longfellow-zk/lib/circuits/compiler/compiler.h:30:
+In file included from longfellow-zk/lib/sumcheck/circuit_id.h:23:
+longfellow-zk/lib/util/crypto.h:48:55: warning: 'SHA256_Update' is deprecated [-Wdeprecated-declarations]
+   48 |   void Update(const uint8_t bytes[/*n*/], size_t n) { SHA256_Update(&sha_, bytes, n); }
+      |                                                       ^
+/usr/include/openssl/sha.h:74:1: note: 'SHA256_Update' has been explicitly marked deprecated here
+   74 | OSSL_DEPRECATEDIN_3_0 int SHA256_Update(SHA256_CTX *c,
+      | ^
+/usr/include/openssl/macros.h:182:49: note: expanded from macro 'OSSL_DEPRECATEDIN_3_0'
+  182 | #   define OSSL_DEPRECATEDIN_3_0                OSSL_DEPRECATED(3.0)
+      |                                                 ^
+/usr/include/openssl/macros.h:62:52: note: expanded from macro 'OSSL_DEPRECATED'
+   62 | #     define OSSL_DEPRECATED(since) __attribute__((deprecated))
+      |                                                    ^
+In file included from playground/native/jwt_cli.cc:37:
+In file included from longfellow-zk/lib/circuits/compiler/compiler.h:30:
+In file included from longfellow-zk/lib/sumcheck/circuit_id.h:23:
+longfellow-zk/lib/util/crypto.h:50:5: warning: 'SHA256_Final' is deprecated [-Wdeprecated-declarations]
+   50 |     SHA256_Final(digest, &sha_);
+      |     ^
+/usr/include/openssl/sha.h:76:1: note: 'SHA256_Final' has been explicitly marked deprecated here
+   76 | OSSL_DEPRECATEDIN_3_0 int SHA256_Final(unsigned char *md, SHA256_CTX *c);
+      | ^
+/usr/include/openssl/macros.h:182:49: note: expanded from macro 'OSSL_DEPRECATEDIN_3_0'
+  182 | #   define OSSL_DEPRECATEDIN_3_0                OSSL_DEPRECATED(3.0)
+      |                                                 ^
+/usr/include/openssl/macros.h:62:52: note: expanded from macro 'OSSL_DEPRECATED'
+   62 | #     define OSSL_DEPRECATED(since) __attribute__((deprecated))
+      |                                                    ^
+3 warnings generated.
+COMPILE_EXIT=0

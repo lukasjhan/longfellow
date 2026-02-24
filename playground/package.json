@@ -9,6 +9,7 @@
     "circuits": "node src/prebuild-circuits.js",
     "demo": "node src/demo.js",
     "demo:multi": "node src/demo-multi.js",
+    "demo:jwt": "node src/demo-jwt.js",
     "issue": "node src/playground.js issue",
     "present": "node src/playground.js present",
     "verify": "node src/playground.js verify",

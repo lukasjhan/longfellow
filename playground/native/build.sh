@@ -31,8 +31,8 @@ fi
 echo ">> building mdoc_static"
 make -C "$BUILD" mdoc_static -j"$(nproc)"
 
-# --- 3. compile the CLI -----------------------------------------------------
-echo ">> compiling longfellow_cli"
+# --- 3. compile the mdoc CLI ------------------------------------------------
+echo ">> compiling longfellow_cli (mdoc)"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul \
   -I"$LIB" \
   "$HERE/longfellow_cli.cc" \
@@ -40,4 +40,16 @@ echo ">> compiling longfellow_cli"
   -lcrypto -lzstd -lpthread \
   -o "$HERE/longfellow_cli"
 
-echo ">> done: $HERE/longfellow_cli"
+# --- 4. compile the JWT/SD-JWT CLI (experimental circuit) -------------------
+echo ">> building base64 + compiling jwt_cli (SD-JWT)"
+make -C "$BUILD" base64 -j"$(nproc)"
+BASE64_OBJ="$(find "$BUILD" -name decode_util.cc.o | head -1)"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul \
+  -I"$LIB" \
+  "$HERE/jwt_cli.cc" \
+  "$BASE64_OBJ" \
+  "$BUILD/circuits/mdoc/libmdoc_static.a" \
+  -lcrypto -lzstd -lpthread \
+  -o "$HERE/jwt_cli"
+
+echo ">> done: $HERE/longfellow_cli, $HERE/jwt_cli"

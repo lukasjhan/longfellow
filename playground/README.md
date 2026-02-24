@@ -66,6 +66,20 @@ node src/demo-multi.js 3 family_name,height,age_over_18   # 혼합 타입 3속�
 mdoc에서 각 속성의 **raw CBOR 값을 그대로 추출**해 `--attrs N` 회로로 한 번에
 공개하고, 한 속성 값만 위조하면 거부되는 것까지 보여줍니다.
 
+**SD-JWT(+KB) 영지식 증명** (longfellow의 실험용 JWT 회로):
+
+```bash
+pnpm run demo:jwt                                  # given_name=Erika (예제0)
+node src/demo-jwt.js 1 family_name Mustermann      # 다른 토큰/속성
+```
+실제 SD-JWT-VC + Key Binding 토큰(ES256 서명)에서 **`"id":"value"` 문자열 속성**을
+영지식 공개합니다. 검증자는 **토큰 원문 없이** pk·e2·attr만으로 검증합니다.
+
+> ⚠️ JWT 회로는 longfellow의 **실험용**(`circuits/tests/jwt`)이며 공개 API가 없어,
+> `native/jwt_cli.cc`가 회로를 직접 빌드해 ZK를 구동합니다. mdoc과 달리 **문자열
+> 속성만** 증명 가능(`age_over_18:true` 같은 불리언/숫자는 불가). 회로 캐시도 없어
+> prove/verify가 매번 회로를 빌드합니다(각 ~5초).
+
 단계별 실행도 가능합니다(상태는 `artifacts/`에 저장):
 
 ```bash

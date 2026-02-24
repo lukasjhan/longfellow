@@ -52,8 +52,11 @@ ZK로 증명"** 을 두 빌딩블록으로 해결합니다.
 | 포맷 | 공개 C API | 비고 |
 |---|---|---|
 | **mdoc (ISO 18013-5)** | ✅ 있음 | `generate_circuit`/`run_mdoc_prover`/`run_mdoc_verifier` |
-| JWT | ❌ 없음 | `circuits/tests/jwt/`에 실험 회로만 |
+| **SD-JWT(+KB)** | ⚠️ 실험 회로 | `circuits/tests/jwt/`. 공개 API 없음 → 플레이그라운드가 하니스로 구동(문자열 속성만) |
 | W3C VC | ❌ 없음 | 논문/README의 지향점일 뿐 |
+
+> 플레이그라운드는 **mdoc**(완전 지원)와 **SD-JWT**(실험 회로 하니스) 둘 다
+> 영지식 present/verify가 동작합니다. SD-JWT는 `pnpm run demo:jwt` 참고.
 
 ⚠️ longfellow는 mdoc를 **발급하지 않습니다.** 이미 ECDSA 서명된 mdoc에 대해
 **present/verify만** 합니다(발급은 별도 라이브러리 몫).

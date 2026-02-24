@@ -10,6 +10,7 @@ build_mdoc_test.log
 
 # --- compiled CLI binary & objects ---
 playground/native/longfellow_cli
+playground/native/jwt_cli
 playground/native/*.o
 
 # --- node ---
@@ -21,6 +22,7 @@ pnpm-debug.log*
 playground/artifacts/*
 !playground/artifacts/.gitkeep
 playground/artifacts-multi/
+playground/artifacts-jwt/
 
 # --- cached circuits: keep the manifest, ignore the big .bin blobs ---
 playground/circuits/*.bin
