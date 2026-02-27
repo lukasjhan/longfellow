@@ -3,7 +3,7 @@
 
 # --- C++ build outputs ---
 /build/
-build_mdoc_test.log
+*.log
 
 # --- generated clang toolchain wrappers (machine-specific paths) ---
 /.toolchain/
