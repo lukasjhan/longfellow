@@ -80,6 +80,18 @@ node src/demo-jwt.js 1 family_name Mustermann      # 다른 토큰/속성
 > 속성만** 증명 가능(`age_over_18:true` 같은 불리언/숫자는 불가). 회로 캐시도 없어
 > prove/verify가 매번 회로를 빌드합니다(각 ~5초).
 
+#### 진행 중: mdoc급 SD-JWT-VC (Approach C)
+
+위 substring 한계를 넘어, **표준 SD-JWT-VC의 `_sd` Disclosure 멤버십**으로 모든
+타입 + 유효기간(exp) + Key Binding을 지원하는 회로를 설계 중입니다. 설계·마일스톤은
+[`SDJWT_PLAN.md`](SDJWT_PLAN.md). 현재 M1(데이터·레퍼런스) 완료:
+
+```bash
+pnpm run gen:sdjwt      # 실제 ES256 SD-JWT-VC 발급 → fixtures/ (deps 필요: node_modules 심볼릭링크)
+pnpm run decode:sdjwt   # 의존성 없이 disclosure 해시가 _sd에 있는지 검증 (회로가 할 일의 레퍼런스)
+```
+→ 문자열/날짜/불리언/숫자 모두 `_sd` 멤버십으로 검증됨을 확인(파싱 불필요).
+
 단계별 실행도 가능합니다(상태는 `artifacts/`에 저장):
 
 ```bash

@@ -1,0 +1,66 @@
+{
+  "payload": {
+    "iss": "https://issuer.example/eudi",
+    "vct": "https://credentials.example/pid",
+    "iat": 1779538191,
+    "exp": 1782130191,
+    "cnf": {
+      "jwk": {
+        "kty": "EC",
+        "x": "IdBhFX682Z9ukEa8H6VHpMXXMff7KGUPVb1d_LSGgX4",
+        "y": "WngOnIJwMNEXkJjHXdnCyrU4BsBuEiLg1aLLbmanwes",
+        "crv": "P-256"
+      }
+    },
+    "_sd_alg": "sha-256",
+    "_sd": [
+      "XmfUXfXznzj4nVfrQBbQlqA4k26wQkjGx1wzKddxB84",
+      "l0vSvCn-Lj8vmLMeoJvafAsnr_Luo-IX5OsRQu4HNo0",
+      "mUZnztMT17KjYO7VvnQjrxk28oXdfwPi-IyPH5IQ9do",
+      "mbGn2aJWrZthNqbbcdct-JKOYkYemt3gHpIZ12CpeoM",
+      "mh-nWgpVKhw2OI1mVtdY39ceDaWy-SldE9qOjBH3ZtY"
+    ]
+  },
+  "disclosures": [
+    {
+      "name": "given_name",
+      "value": "Erika",
+      "salt": "3oP-8ye654ghzjmr5cL-hw",
+      "json": "[\"3oP-8ye654ghzjmr5cL-hw\",\"given_name\",\"Erika\"]",
+      "disclosure": "WyIzb1AtOHllNjU0Z2h6am1yNWNMLWh3IiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
+      "digest": "l0vSvCn-Lj8vmLMeoJvafAsnr_Luo-IX5OsRQu4HNo0"
+    },
+    {
+      "name": "family_name",
+      "value": "Mustermann",
+      "salt": "3sadzIF05-71NWiZEuyOkg",
+      "json": "[\"3sadzIF05-71NWiZEuyOkg\",\"family_name\",\"Mustermann\"]",
+      "disclosure": "WyIzc2FkeklGMDUtNzFOV2laRXV5T2tnIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
+      "digest": "mh-nWgpVKhw2OI1mVtdY39ceDaWy-SldE9qOjBH3ZtY"
+    },
+    {
+      "name": "birthdate",
+      "value": "1963-08-12",
+      "salt": "-W3-eQxoi1M5Zyr8lsKUGg",
+      "json": "[\"-W3-eQxoi1M5Zyr8lsKUGg\",\"birthdate\",\"1963-08-12\"]",
+      "disclosure": "WyItVzMtZVF4b2kxTTVaeXI4bHNLVUdnIiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
+      "digest": "mbGn2aJWrZthNqbbcdct-JKOYkYemt3gHpIZ12CpeoM"
+    },
+    {
+      "name": "age_over_18",
+      "value": true,
+      "salt": "GPnleTgeZvbC3UJnPBvrNA",
+      "json": "[\"GPnleTgeZvbC3UJnPBvrNA\",\"age_over_18\",true]",
+      "disclosure": "WyJHUG5sZVRnZVp2YkMzVUpuUEJ2ck5BIiwiYWdlX292ZXJfMTgiLHRydWVd",
+      "digest": "mUZnztMT17KjYO7VvnQjrxk28oXdfwPi-IyPH5IQ9do"
+    },
+    {
+      "name": "height",
+      "value": 175,
+      "salt": "5HwsN4aPSwq3kEHPQNO6Lg",
+      "json": "[\"5HwsN4aPSwq3kEHPQNO6Lg\",\"height\",175]",
+      "disclosure": "WyI1SHdzTjRhUFN3cTNrRUhQUU5PNkxnIiwiaGVpZ2h0IiwxNzVd",
+      "digest": "XmfUXfXznzj4nVfrQBbQlqA4k26wQkjGx1wzKddxB84"
+    }
+  ]
+}

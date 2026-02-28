@@ -1,0 +1,10 @@
+{
+  "jwk": {
+    "kty": "EC",
+    "x": "IdBhFX682Z9ukEa8H6VHpMXXMff7KGUPVb1d_LSGgX4",
+    "y": "WngOnIJwMNEXkJjHXdnCyrU4BsBuEiLg1aLLbmanwes",
+    "crv": "P-256"
+  },
+  "x_hex": "0x21d061157ebcd99f6e9046bc1fa547a4c5d731f7fb28650f55bd5dfcb486817e",
+  "y_hex": "0x5a780e9c827030d1179098c75dd9c2cab53806c06e1222e0d5a2cb6e66a7c1eb"
+}
