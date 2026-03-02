@@ -14,9 +14,18 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <vector>
 
+#include <openssl/sha.h>
+
+#include "circuits/tests/base64/decode.h"
+#include "circuits/logic/bit_plucker.h"
+#include "circuits/logic/bit_plucker_encoder.h"
 #include "circuits/logic/evaluation_backend.h"
 #include "circuits/logic/logic.h"
+#include "circuits/sha/flatsha256_circuit.h"
+#include "circuits/sha/flatsha256_witness.h"
 #include "ec/p256.h"
 #include "util/log.h"
 
@@ -26,7 +35,11 @@ namespace {
 using EvalBackend = EvaluationBackend<Fp256Base>;
 using L_t = Logic<Fp256Base, EvalBackend>;
 using v8 = L_t::v8;
+using v256 = L_t::v256;
 using BitW = L_t::BitW;
+
+constexpr size_t kPluck = 4;  // = kSHAJWTPluckerBits
+using FlatSHA = FlatSHA256Circuit<L_t, BitPlucker<L_t, kPluck>>;
 
 // Build n v8 bytes from an ASCII string.
 void mk_bytes(const L_t& L, const char* s, v8* out, size_t n) {
@@ -51,6 +64,92 @@ void assert_not_expired(const L_t& L, const char* now, const char* exp) {
   mk_bytes(L, now, n, 10);
   mk_bytes(L, exp, e, 10);
   L.assert1(leq_bytes(L, n, e, 10));
+}
+
+// Build a v256 `target` (the claimed SHA-256 output) from a 32-byte digest,
+// using longfellow's convention: the digest is read big-endian into an integer
+// E, and target[i] is bit i of E (LSB first). i.e. target[8*b+c] = bit c of
+// digest byte (31-b).
+void digest_to_v256(const L_t& L, const uint8_t dig[32], v256& target) {
+  for (size_t b = 0; b < 32; ++b)
+    for (size_t c = 0; c < 8; ++c)
+      target[8 * b + c] = L.bit((dig[31 - b] >> c) & 1);
+}
+
+// Core of Approach C: prove SHA-256(disclosure) equals a given digest, inside
+// the circuit (FlatSHA256). Returns the `target` bits so a caller can later
+// assert membership (target == base64decode(_sd entry)).
+// MAXB = max SHA blocks for the disclosure (disclosures are short).
+template <size_t MAXB>
+void assert_sha_of(const L_t& L, const char* msg, size_t mlen, v256& target_out) {
+  uint8_t in[64 * MAXB];
+  FlatSHA256Witness::BlockWitness bw[MAXB];
+  uint8_t numb = 0;
+  FlatSHA256Witness::transform_and_witness_message(mlen, (const uint8_t*)msg,
+                                                    MAXB, numb, in, bw);
+
+  uint8_t dig[32];
+  SHA256((const uint8_t*)msg, mlen, dig);
+
+  // Pack the SHA block witnesses into circuit form.
+  FlatSHA sha(L);
+  typename FlatSHA::BlockWitness sbw[MAXB];
+  BitPluckerEncoder<Fp256Base, kPluck> enc(p256_base);
+  for (size_t i = 0; i < MAXB; ++i) {
+    for (size_t k = 0; k < 48; ++k) sbw[i].outw[k] = L.konst(enc.mkpacked_v32(bw[i].outw[k]));
+    for (size_t k = 0; k < 64; ++k) {
+      sbw[i].oute[k] = L.konst(enc.mkpacked_v32(bw[i].oute[k]));
+      sbw[i].outa[k] = L.konst(enc.mkpacked_v32(bw[i].outa[k]));
+    }
+    for (size_t k = 0; k < 8; ++k) sbw[i].h1[k] = L.konst(enc.mkpacked_v32(bw[i].h1[k]));
+  }
+
+  v8 preimage[64 * MAXB];
+  for (size_t i = 0; i < 64 * MAXB; ++i) preimage[i] = L.template vbit<8>(in[i]);
+  v8 nb = L.template vbit<8>(numb);
+
+  digest_to_v256(L, dig, target_out);
+  // If SHA(preimage) != target, EvaluationBackend(true) panics here.
+  sha.assert_message_hash(MAXB, nb, preimage, target_out, sbw);
+}
+
+// base64url encode (no padding) — host helper to build a test `_sd` entry.
+std::string b64url(const uint8_t* d, size_t n) {
+  static const char* T =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  std::string o;
+  int val = 0, bits = 0;
+  for (size_t i = 0; i < n; ++i) {
+    val = (val << 8) | d[i];
+    bits += 8;
+    while (bits >= 6) { o += T[(val >> (bits - 6)) & 63]; bits -= 6; }
+  }
+  if (bits > 0) o += T[(val << (6 - bits)) & 63];
+  return o;
+}
+
+// Full `_sd` membership: returns a bit that is true iff
+//   base64url-decode(sd_entry) == SHA-256(disclosure).
+// (assert_sha_of binds SHA(disclosure) to `target`; we then compare the
+//  base64-decoded, issuer-signed _sd entry against that digest.)
+BitW sha_membership(const L_t& L, const char* disc, size_t dlen,
+                    const std::string& sd_entry) {
+  v256 target;
+  assert_sha_of<2>(L, disc, dlen, target);
+
+  size_t n = sd_entry.size();  // 43 for a 32-byte digest
+  std::vector<v8> in(n), out((n * 6) / 8 + 1);
+  for (size_t i = 0; i < n; ++i) in[i] = L.template vbit<8>((uint8_t)sd_entry[i]);
+  Base64Decoder<L_t> b64(L);
+  b64.base64_rawurl_decode(in.data(), out.data(), n);
+
+  BitW all = L.bit(1);
+  for (size_t j = 0; j < 32; ++j) {
+    v8 tb;  // digest byte j, reconstructed from target bits
+    for (size_t c = 0; c < 8; ++c) tb[c] = target[8 * (31 - j) + c];
+    all = L.land(all, L.eq(8, out[j].data(), tb.data()));
+  }
+  return all;
 }
 
 }  // namespace
@@ -82,6 +181,26 @@ int main() {
   }
   printf("exp check  now>exp   : PASS (expiry correctly rejected)\n");
 
-  printf("\nALL exp-comparison sub-circuit checks PASS (M2)\n");
+  // SHA-of-disclosure (core of `_sd` membership): prove SHA256(disclosure)
+  // in-circuit equals the digest. A real disclosure = base64url([salt,name,value]).
+  const char* disc = "WyJHUG5sZVRnZVp2YkMzVUpuUEJ2ck5BIiwiYWdlX292ZXJfMTgiLHRydWVd";
+  v256 digest_bits;
+  assert_sha_of<2>(L, disc, strlen(disc), digest_bits);
+  printf("sha(disclosure) in-circuit == digest : PASS (membership core)\n");
+
+  // Full `_sd` membership: build the real entry = base64url(SHA(disc)).
+  uint8_t dg[32];
+  SHA256((const uint8_t*)disc, strlen(disc), dg);
+  std::string sd_ok = b64url(dg, 32);
+  L.assert1(sha_membership(L, disc, strlen(disc), sd_ok));
+  printf("membership  SHA(disc) ∈ _sd entry    : PASS (correct entry accepted)\n");
+
+  // Negative: tamper the entry → membership must be false.
+  std::string sd_bad = sd_ok;
+  sd_bad[0] = (sd_bad[0] == 'A') ? 'B' : 'A';
+  L.assert1(L.lnot(sha_membership(L, disc, strlen(disc), sd_bad)));
+  printf("membership  wrong entry              : PASS (rejected)\n");
+
+  printf("\nALL SD-JWT Approach-C sub-circuit checks PASS (M2)\n");
   return 0;
 }
