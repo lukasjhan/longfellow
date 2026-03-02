@@ -52,4 +52,13 @@ BASE64_OBJ="$(find "$BUILD" -name decode_util.cc.o | head -1)"
   -lcrypto -lzstd -lpthread \
   -o "$HERE/jwt_cli"
 
-echo ">> done: $HERE/longfellow_cli, $HERE/jwt_cli"
+# --- 5. compile the SD-JWT eval prototype (M2, no ZK) -----------------------
+echo ">> compiling sdjwt_eval (SD-JWT Approach-C logic prototype)"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul \
+  -I"$LIB" \
+  "$HERE/sdjwt_eval.cc" \
+  "$BUILD/circuits/mdoc/libmdoc_static.a" \
+  -lcrypto -lzstd -lpthread \
+  -o "$HERE/sdjwt_eval"
+
+echo ">> done: $HERE/longfellow_cli, $HERE/jwt_cli, $HERE/sdjwt_eval"

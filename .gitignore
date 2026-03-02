@@ -11,6 +11,7 @@
 # --- compiled CLI binary & objects ---
 playground/native/longfellow_cli
 playground/native/jwt_cli
+playground/native/sdjwt_eval
 playground/native/*.o
 
 # --- node ---
