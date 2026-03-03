@@ -24,6 +24,7 @@
 #include "circuits/logic/bit_plucker_encoder.h"
 #include "circuits/logic/evaluation_backend.h"
 #include "circuits/logic/logic.h"
+#include "circuits/logic/routing.h"
 #include "circuits/sha/flatsha256_circuit.h"
 #include "circuits/sha/flatsha256_witness.h"
 #include "ec/p256.h"
@@ -111,6 +112,58 @@ void assert_sha_of(const L_t& L, const char* msg, size_t mlen, v256& target_out)
   digest_to_v256(L, dig, target_out);
   // If SHA(preimage) != target, EvaluationBackend(true) panics here.
   sha.assert_message_hash(MAXB, nb, preimage, target_out, sbw);
+}
+
+v8 vb(const L_t& L, uint8_t c) { return L.template vbit<8>(c); }
+
+// 4a: structural extraction. Verify a DECODED disclosure
+//   ["<salt>","<name>",<value>]
+// encodes the requested (name, value), where <value> is the exact JSON encoding
+// ("Erika" incl. quotes / true / 175). salt is a variable-length unknown run.
+//
+// Method (circuit-friendly): assert the fixed prefix `["`, then shift left by
+// (2 + saltLen) so the salt's closing quote is at position 0, then compare the
+// remainder against the fixed pattern  ","<name>",<value>]  byte-for-byte. The
+// closing ']' delimits <value>, so this is sound for ANY value type (no prefix
+// ambiguity), and the whole disclosure is hash-committed via _sd membership.
+template <size_t MAXD, size_t LOGN>
+void assert_disclosure_struct(const L_t& L, const v8 D[/*MAXD*/], size_t saltLen,
+                              const char* name, size_t nlen, const char* value,
+                              size_t vlen) {
+  // Fixed prefix: D[0]=='[', D[1]=='"'
+  L.assert1(L.eq(8, D[0].data(), vb(L, '[').data()));
+  L.assert1(L.eq(8, D[1].data(), vb(L, '"').data()));
+
+  // Expected suffix pattern P, starting at the salt-closing quote (pos 2+saltLen):
+  //   '"' ',' '"' <name> '"' ',' <value> ']'
+  std::vector<v8> P;
+  P.push_back(vb(L, '"'));
+  P.push_back(vb(L, ','));
+  P.push_back(vb(L, '"'));
+  for (size_t i = 0; i < nlen; ++i) P.push_back(vb(L, (uint8_t)name[i]));
+  P.push_back(vb(L, '"'));
+  P.push_back(vb(L, ','));
+  for (size_t i = 0; i < vlen; ++i) P.push_back(vb(L, (uint8_t)value[i]));
+  P.push_back(vb(L, ']'));
+
+  // Shift D left by (2 + saltLen).
+  typename L_t::template bitvec<LOGN> amount = L.template vbit<LOGN>(2 + saltLen);
+  v8 zero = vb(L, 0);
+  std::vector<v8> S(P.size());
+  Routing<L_t> r(L);
+  r.shift(amount, P.size(), S.data(), MAXD, D, zero, 3);
+
+  // Compare the shifted remainder to the fixed pattern.
+  for (size_t i = 0; i < P.size(); ++i)
+    L.assert1(L.eq(8, S[i].data(), P[i].data()));
+}
+
+// Build D (v8[MAXD]) from a decoded-disclosure JSON string (zero-padded).
+template <size_t MAXD>
+void mk_disc(const L_t& L, const char* json, v8 D[/*MAXD*/]) {
+  size_t n = strlen(json);
+  for (size_t i = 0; i < MAXD; ++i)
+    D[i] = L.template vbit<8>(i < n ? (uint8_t)json[i] : 0);
 }
 
 // base64url encode (no padding) — host helper to build a test `_sd` entry.
@@ -201,6 +254,25 @@ int main() {
   L.assert1(L.lnot(sha_membership(L, disc, strlen(disc), sd_bad)));
   printf("membership  wrong entry              : PASS (rejected)\n");
 
-  printf("\nALL SD-JWT Approach-C sub-circuit checks PASS (M2)\n");
+  // 4a: disclosure structural extraction — works for ALL value types.
+  // salt below is 22 chars (16 random bytes base64url).
+  {
+    const size_t MAXD = 128;
+    v8 D[MAXD];
+    // string value
+    mk_disc<MAXD>(L, "[\"GPnleTgeZvbC3UJnPBvrNA\",\"given_name\",\"Erika\"]", D);
+    assert_disclosure_struct<MAXD, 8>(L, D, 22, "given_name", 10, "\"Erika\"", 7);
+    printf("disclosure  string  given_name=Erika : PASS\n");
+    // boolean value
+    mk_disc<MAXD>(L, "[\"GPnleTgeZvbC3UJnPBvrNA\",\"age_over_18\",true]", D);
+    assert_disclosure_struct<MAXD, 8>(L, D, 22, "age_over_18", 11, "true", 4);
+    printf("disclosure  boolean age_over_18=true : PASS\n");
+    // number value
+    mk_disc<MAXD>(L, "[\"GPnleTgeZvbC3UJnPBvrNA\",\"height\",175]", D);
+    assert_disclosure_struct<MAXD, 8>(L, D, 22, "height", 6, "175", 3);
+    printf("disclosure  number  height=175       : PASS\n");
+  }
+
+  printf("\nALL SD-JWT Approach-C sub-circuit checks PASS (M2 + 4a)\n");
   return 0;
 }
