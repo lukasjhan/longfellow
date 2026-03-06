@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -205,10 +206,125 @@ BitW sha_membership(const L_t& L, const char* disc, size_t dlen,
   return all;
 }
 
+// ---------------- host helpers for the integrated test ----------------------
+int b64v(char c) {
+  if (c >= 'A' && c <= 'Z') return c - 'A';
+  if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+  if (c >= '0' && c <= '9') return c - '0' + 52;
+  if (c == '-') return 62;
+  if (c == '_') return 63;
+  return -1;
+}
+std::string b64url_decode(const std::string& s) {
+  std::string o;
+  int val = 0, bits = 0;
+  for (char c : s) {
+    int d = b64v(c);
+    if (d < 0) continue;
+    val = (val << 6) | d;
+    bits += 6;
+    if (bits >= 8) { o += char((val >> (bits - 8)) & 0xff); bits -= 8; }
+  }
+  return o;
+}
+std::string read_file(const std::string& p) {
+  std::ifstream f(p, std::ios::binary);
+  std::string s((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
+  return s;
+}
+
+// 4b: tie everything together on a REAL SD-JWT-VC fixture. Locates the exp
+// digits and a disclosure's _sd entry inside the (decoded) payload by index
+// (Routing::shift), then runs exp + membership + structural checks in-circuit.
+void test_integrated(const L_t& L, const std::string& path, const char* now) {
+  const size_t MAXP = 1024;   // max decoded-payload bytes
+  const size_t MAXDB = 128;   // max disclosure base64 chars
+  const size_t MAXDD = 96;    // max decoded-disclosure bytes
+  const size_t LOGP = 10;     // index bits into payload
+
+  std::string compact = read_file(path);
+  std::string jwt = compact.substr(0, compact.find('~'));
+  std::string payload_b64 = jwt.substr(jwt.find('.') + 1);
+  payload_b64 = payload_b64.substr(0, payload_b64.find('.'));
+  std::string payload = b64url_decode(payload_b64);  // JSON text
+
+  // Collect disclosures (between the '~').
+  std::vector<std::string> discs;
+  {
+    size_t p = compact.find('~') + 1, q;
+    while ((q = compact.find('~', p)) != std::string::npos) {
+      if (q > p) discs.push_back(compact.substr(p, q - p));
+      p = q + 1;
+    }
+  }
+  // Choose the boolean disclosure (decodes to [...,"age_over_18",...]).
+  std::string disc;
+  for (auto& d : discs)
+    if (b64url_decode(d).find("\"age_over_18\"") != std::string::npos) disc = d;
+  check(!disc.empty(), "age_over_18 disclosure not found in fixture");
+
+  // Host: digest + its _sd entry + locations in the payload.
+  uint8_t dg[32];
+  SHA256((const uint8_t*)disc.data(), disc.size(), dg);
+  std::string sd_entry = b64url(dg, 32);
+  size_t sd_idx = payload.find(sd_entry);
+  check(sd_idx != std::string::npos, "disclosure digest not in payload _sd");
+  size_t exp_idx = payload.find("\"exp\":");
+  check(exp_idx != std::string::npos, "exp not in payload");
+  exp_idx += 6;  // skip "exp":
+
+  // ---- circuit witness ----
+  v8 P[MAXP];
+  for (size_t i = 0; i < MAXP; ++i)
+    P[i] = L.template vbit<8>(i < payload.size() ? (uint8_t)payload[i] : 0);
+  v8 zero = vb(L, 0);
+  Routing<L_t> r(L);
+
+  // (1) exp: shift payload to the 10 exp digits, compare to `now`.
+  {
+    v8 ed[10], nd[10];
+    auto amt = L.template vbit<LOGP>(exp_idx);
+    r.shift(amt, 10, ed, MAXP, P, zero, 3);
+    mk_bytes(L, now, nd, 10);
+    L.assert1(leq_bytes(L, nd, ed, 10));  // now <= exp
+  }
+
+  // (2) membership: SHA(disc) == base64decode(_sd entry located in payload).
+  v256 target;
+  assert_sha_of<2>(L, disc.data(), disc.size(), target);
+  {
+    v8 entry[43];
+    auto amt = L.template vbit<LOGP>(sd_idx);
+    r.shift(amt, 43, entry, MAXP, P, zero, 3);
+    v8 out[33];
+    Base64Decoder<L_t> b64(L);
+    b64.base64_rawurl_decode(entry, out, 43);
+    for (size_t j = 0; j < 32; ++j) {
+      v8 tb;
+      for (size_t c = 0; c < 8; ++c) tb[c] = target[8 * (31 - j) + c];
+      L.assert1(L.eq(8, out[j].data(), tb.data()));
+    }
+  }
+
+  // (3) structural: decode the disclosure in-circuit, verify (name,value).
+  {
+    std::string dj = b64url_decode(disc);  // host: to get salt length
+    size_t saltLen = dj.find("\",\"") - 2;  // ["<salt>"...  -> salt is [2 .. )
+    v8 db[MAXDB];
+    for (size_t i = 0; i < MAXDB; ++i)
+      db[i] = L.template vbit<8>(i < disc.size() ? (uint8_t)disc[i] : 0);
+    v8 dd[MAXDD];
+    Base64Decoder<L_t> b64(L);
+    b64.base64_rawurl_decode(db, dd, disc.size());
+    assert_disclosure_struct<MAXDD, 8>(L, dd, saltLen, "age_over_18", 11, "true", 4);
+  }
+}
+
 }  // namespace
 }  // namespace proofs
 
-int main() {
+int main(int argc, char** argv) {
   using namespace proofs;
   set_log_level(ERROR);
   const EvalBackend ebk(p256_base, true);  // true => panic on false assert
@@ -273,6 +389,20 @@ int main() {
     printf("disclosure  number  height=175       : PASS\n");
   }
 
-  printf("\nALL SD-JWT Approach-C sub-circuit checks PASS (M2 + 4a)\n");
+  // 4b: integrated check on a REAL SD-JWT-VC fixture.
+  {
+    const char* fixture = (argc > 1) ? argv[1] : "playground/fixtures/sdjwt.txt";
+    std::ifstream probe(fixture);
+    if (probe.good()) {
+      probe.close();
+      test_integrated(L, fixture, "1700000000");  // now < exp(fixture)
+      printf("\nINTEGRATED on real fixture (%s):\n", fixture);
+      printf("  exp valid + age_over_18 ∈ _sd + decodes to (age_over_18,true) : PASS\n");
+    } else {
+      printf("\n(skip integrated: fixture not found at %s — run gen:sdjwt)\n", fixture);
+    }
+  }
+
+  printf("\nALL SD-JWT Approach-C checks PASS (M2 + 4a + 4b)\n");
   return 0;
 }

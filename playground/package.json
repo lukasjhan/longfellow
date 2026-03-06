@@ -12,6 +12,7 @@
     "demo:jwt": "node src/demo-jwt.js",
     "decode:sdjwt": "node src/decode-sdjwt.js",
     "gen:sdjwt": "node tools/gen-sdjwt.mjs",
+    "eval:sdjwt": "native/sdjwt_eval fixtures/sdjwt.txt",
     "issue": "node src/playground.js issue",
     "present": "node src/playground.js present",
     "verify": "node src/playground.js verify",
