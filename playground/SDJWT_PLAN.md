@@ -58,14 +58,21 @@ substring의 prefix 모호성(`18`⊂`180`)이 원천 소거된다. (레퍼런�
 
 ## 마일스톤 (점진·검증가능)
 
-- **M1 (완료)**: 실제 SD-JWT-VC 발급기 + 의존성 없는 레퍼런스 검증기 + 설계.
+- **M1 ✅**: 실제 SD-JWT-VC 발급기 + 의존성 없는 레퍼런스 검증기 + 설계.
   `tools/gen-sdjwt.mjs`, `src/decode-sdjwt.js`, `fixtures/`.
-- **M2**: witness 빌더(C++ `SdJwtWitness`) — 평문에서 모든 인덱스/조각 산출,
-  EvaluationBackend로 회로 평가만(ZK 전). 인덱스/구조 로직 확정.
-- **M3**: 회로 골격 — ECDSA + SHA(header.payload) + **exp 검사**. (서명+만료만)
-- **M4**: disclosure 1개 — `_sd` 멤버십 + 구조 일치. 모든 타입 통과 확인.
-- **M5**: 다 disclosure + KB 서명, 하니스(`sdjwt_cli`) + Node(`demo-sdjwt`) + 위조/만료 거부 테스트.
-- **M6**: 회로 캐시, 문서.
+- **M2 ✅** (eval): exp 비교 서브회로 + EvaluationBackend 하니스. `native/sdjwt_eval.cc`.
+- **M4-core ✅** (eval): SHA(disclosure) in-circuit + `_sd` 멤버십(base64 디코드+비교),
+  정상 accept/위조 reject.
+- **4a ✅** (eval): disclosure 구조 추출 `["salt","name",value]` (가변 salt) — 문자열/불리언/숫자.
+- **4b ✅** (eval): **실제 fixture 통합** — payload에서 exp·`_sd` 엔트리 인덱스 탐색 후
+  exp+멤버십+구조추출 end-to-end PASS (불리언 포함). `pnpm run eval:sdjwt`.
+- **M5 (남음)**: ECDSA 프론트엔드(발급자+KB, 이미 jwt.h/jwt_cli에서 검증) 결합 →
+  CompilerBackend 컴파일 → 실제 ZK prove/verify → witness 빌더 → `sdjwt_cli`+Node 데모.
+- **M6 (남음)**: 회로 캐시, 문서.
+
+> 현재 상태: **신규 암호 로직(exp·SHA·멤버십·구조)이 실제 데이터로 전부 eval 검증됨.**
+> 남은 M5는 새 암호 발명이 아니라 "검증된 로직 + 기존 ECDSA를 한 회로로 컴파일해
+> 실제 ZK 증명·Node 연동" 통합 작업(가장 큰 단일 단계).
 
 ## 리스크 / 공수
 
