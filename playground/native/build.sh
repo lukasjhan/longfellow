@@ -62,4 +62,14 @@ echo ">> compiling sdjwt_eval (SD-JWT Approach-C logic prototype)"
   -lcrypto -lzstd -lpthread \
   -o "$HERE/sdjwt_eval"
 
-echo ">> done: $HERE/longfellow_cli, $HERE/jwt_cli, $HERE/sdjwt_eval"
+# --- 6. compile the SD-JWT ZK circuit (M3+) ---------------------------------
+echo ">> compiling sdjwt_zk (SD-JWT Approach-C real ZK circuit)"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul \
+  -I"$LIB" \
+  "$HERE/sdjwt_zk.cc" \
+  "$BASE64_OBJ" \
+  "$BUILD/circuits/mdoc/libmdoc_static.a" \
+  -lcrypto -lzstd -lpthread \
+  -o "$HERE/sdjwt_zk"
+
+echo ">> done: longfellow_cli, jwt_cli, sdjwt_eval, sdjwt_zk"
