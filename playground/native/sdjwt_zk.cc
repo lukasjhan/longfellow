@@ -73,6 +73,32 @@ constexpr size_t LOGP = 10;     // index bits into payload
 constexpr size_t MAXB = 2;      // SHA blocks for a disclosure (<=128 bytes)
 
 // ----- circuit logic (CompilerBackend) -----
+v8 vb(const LC& L, uint8_t c) { return L.template vbit<8>(c); }
+
+// Verify decoded disclosure dd = ["<salt>","<name>",<value>] encodes (name,
+// value). `shiftAmt` = 2 + saltLen positions the salt-closing quote at 0.
+void assert_disclosure_struct(const LC& L, const v8* dd, size_t maxd,
+                              const LC::bitvec<8>& shiftAmt, const char* name,
+                              size_t nlen, const char* value, size_t vlen) {
+  L.assert1(L.eq(8, dd[0].data(), vb(L, '[').data()));
+  L.assert1(L.eq(8, dd[1].data(), vb(L, '"').data()));
+  std::vector<v8> P;
+  P.push_back(vb(L, '"'));
+  P.push_back(vb(L, ','));
+  P.push_back(vb(L, '"'));
+  for (size_t i = 0; i < nlen; ++i) P.push_back(vb(L, (uint8_t)name[i]));
+  P.push_back(vb(L, '"'));
+  P.push_back(vb(L, ','));
+  for (size_t i = 0; i < vlen; ++i) P.push_back(vb(L, (uint8_t)value[i]));
+  P.push_back(vb(L, ']'));
+
+  std::vector<v8> S(P.size());
+  Routing<LC> r(L);
+  r.shift(shiftAmt, P.size(), S.data(), maxd, dd, vb(L, 0), 3);
+  for (size_t i = 0; i < P.size(); ++i)
+    L.assert1(L.eq(8, S[i].data(), P[i].data()));
+}
+
 BitW leq_bytes(const LC& L, const v8* a, const v8* b, size_t n) {
   BitW le = L.bit(1);
   for (size_t i = n; i-- > 0;) {
@@ -94,6 +120,8 @@ struct Inputs {
   v8 disc_nb;                       // private
   v256 disc_ebits;                  // private: SHA(disclosure) bits
   SBW disc_sha[MAXB];               // private: SHA block witness
+  LC::bitvec<8> disc_len;           // private: disclosure base64 length
+  LC::bitvec<8> disc_shift;         // private: 2 + saltLen (structural shift)
 };
 
 void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
@@ -106,6 +134,8 @@ void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
   in.disc_nb = L.template vinput<8>();
   in.disc_ebits = L.template vinput<256>();
   for (size_t i = 0; i < MAXB; ++i) in.disc_sha[i].input(L);
+  in.disc_len = L.template vinput<8>();
+  in.disc_shift = L.template vinput<8>();
 }
 
 void assert_logic(const LC& L, const Inputs& in) {
@@ -133,6 +163,16 @@ void assert_logic(const LC& L, const Inputs& in) {
     for (size_t c = 0; c < 8; ++c) tb[c] = in.disc_ebits[8 * (31 - j) + c];
     L.assert1(L.eq(8, out[j].data(), tb.data()));
   }
+
+  // (4) structural: decode disclosure (disc_pre, length disc_len) and verify
+  //     it encodes (age_over_18, true). Works for any value type.
+  constexpr size_t MAXDD = (64 * MAXB * 6) / 8;  // 96
+  v8 dd[MAXDD];
+  Base64Decoder<LC> b64b(L);
+  LC::bitvec<8> dlen(in.disc_len);  // decode_len takes a non-const ref
+  b64b.base64_rawurl_decode_len(in.disc_pre, dd, 64 * MAXB, dlen);
+  assert_disclosure_struct(L, dd, MAXDD, in.disc_shift, "age_over_18", 11,
+                           "true", 4);
 }
 
 std::unique_ptr<Circuit<Fp256Base>> make_circuit() {
@@ -151,6 +191,7 @@ struct Concrete {
   std::string payload;
   size_t exp_idx, sd_idx;
   std::string disc;      // disclosure base64url string
+  size_t salt_len;       // salt byte length in the decoded disclosure
 };
 
 void fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
@@ -187,6 +228,9 @@ void fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
     }
     for (size_t k = 0; k < 8; ++k) f.push_back(enc.mkpacked_v32(bw[i].h1[k]));
   }
+
+  f.push_back(c.disc.size(), 8, p256_base);     // disc_len
+  f.push_back(2 + c.salt_len, 8, p256_base);    // disc_shift = 2 + saltLen
 }
 
 std::string b64url(const uint8_t* d, size_t n) {
@@ -237,7 +281,7 @@ int main() {
   using namespace proofs;
   set_log_level(ERROR);
 
-  printf("M3b: compiling exp + _sd-membership SD-JWT circuit...\n");
+  printf("M3c: compiling exp + _sd-membership + structural SD-JWT circuit...\n");
   auto C = make_circuit();
   printf("  circuit: ninputs=%zu npub_in=%zu nl=%zu\n", C->ninputs, C->npub_in,
          C->nl);
@@ -252,6 +296,7 @@ int main() {
   c.payload = std::string("{\"exp\":1748000000,\"_sd\":[\"") + entry + "\"]}";
   c.exp_idx = c.payload.find("\"exp\":") + 6;
   c.sd_idx = c.payload.find(entry);
+  c.salt_len = 22;  // decoded disc = ["<22-char salt>","age_over_18",true]
   printf("  payload(%zu): %s\n", c.payload.size(), c.payload.c_str());
 
   auto W = Dense<Fp256Base>(1, C->ninputs);
@@ -259,9 +304,9 @@ int main() {
   fill(W, true, c);
   fill(pub, false, c);
 
-  printf("M3b: running ZK prove/verify...\n");
+  printf("M3c: running ZK prove/verify...\n");
   bool ok = run_zk(*C, W, pub);
-  printf("  result: %s (exp valid + disclosure ∈ _sd, in ZK)\n",
+  printf("  result: %s (exp valid + age_over_18 ∈ _sd + decodes to true, in ZK)\n",
          ok ? "ACCEPT ✅" : "REJECT ❌");
   return ok ? 0 : 1;
 }
