@@ -66,13 +66,18 @@ substring의 prefix 모호성(`18`⊂`180`)이 원천 소거된다. (레퍼런�
 - **4a ✅** (eval): disclosure 구조 추출 `["salt","name",value]` (가변 salt) — 문자열/불리언/숫자.
 - **4b ✅** (eval): **실제 fixture 통합** — payload에서 exp·`_sd` 엔트리 인덱스 탐색 후
   exp+멤버십+구조추출 end-to-end PASS (불리언 포함). `pnpm run eval:sdjwt`.
-- **M5 (남음)**: ECDSA 프론트엔드(발급자+KB, 이미 jwt.h/jwt_cli에서 검증) 결합 →
-  CompilerBackend 컴파일 → 실제 ZK prove/verify → witness 빌더 → `sdjwt_cli`+Node 데모.
+- **M3 ✅** (실제 ZK): exp(M3a) + `_sd` 멤버십(M3b) + 구조 추출(M3c)을 CompilerBackend로
+  컴파일 → ZkProver/ZkVerifier로 prove/verify ACCEPT (~1.4s, proof ~239KB). `native/sdjwt_zk.cc`.
+  불리언 `age_over_18:true`까지 ZK 동작. (SHA witness를 회로 입력으로 선언/충전.)
+- **M5 (남음)**: ECDSA 프론트엔드(발급자 서명 + KB 서명 + header.payload SHA) 결합 →
+  실제 SD-JWT에서 witness 빌더(VerifyWitness3·FlatSHA256Witness 재사용, 인덱스 산출) →
+  `sdjwt_cli` + Node 데모(issue→present→verify, 위조/만료 거부).
 - **M6 (남음)**: 회로 캐시, 문서.
 
-> 현재 상태: **신규 암호 로직(exp·SHA·멤버십·구조)이 실제 데이터로 전부 eval 검증됨.**
-> 남은 M5는 새 암호 발명이 아니라 "검증된 로직 + 기존 ECDSA를 한 회로로 컴파일해
-> 실제 ZK 증명·Node 연동" 통합 작업(가장 큰 단일 단계).
+> 현재 상태: **서명을 제외한 SD-JWT 검증 로직 전체가 실제 ZK 증명으로 동작**
+> (exp·SHA·멤버십·구조, 불리언 포함). 남은 M5는 새 암호 발명이 아니라 "기존 ECDSA(이미
+> jwt.h/jwt_cli에서 동작)를 앞에 붙이고 실제 토큰에서 witness를 만들어 Node로 잇는"
+> 통합 작업 — 가장 큰 단일 단계(ECDSA witness 재구성이 핵심).
 
 ## 리스크 / 공수
 
