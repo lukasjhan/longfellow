@@ -2,65 +2,65 @@
   "payload": {
     "iss": "https://issuer.example/eudi",
     "vct": "https://credentials.example/pid",
-    "iat": 1779538191,
-    "exp": 1782130191,
+    "iat": 1779541188,
+    "exp": 1782133188,
     "cnf": {
       "jwk": {
         "kty": "EC",
-        "x": "IdBhFX682Z9ukEa8H6VHpMXXMff7KGUPVb1d_LSGgX4",
-        "y": "WngOnIJwMNEXkJjHXdnCyrU4BsBuEiLg1aLLbmanwes",
+        "x": "pbZ9-y-AEt2D_mjAg7mvf0_Au7gQu9NBSGQ2MwDN-tk",
+        "y": "FdfqrInJ0cotpEc3CjJ0WyHEpOwVWDnJD8DLy2F7v0Q",
         "crv": "P-256"
       }
     },
     "_sd_alg": "sha-256",
     "_sd": [
-      "XmfUXfXznzj4nVfrQBbQlqA4k26wQkjGx1wzKddxB84",
-      "l0vSvCn-Lj8vmLMeoJvafAsnr_Luo-IX5OsRQu4HNo0",
-      "mUZnztMT17KjYO7VvnQjrxk28oXdfwPi-IyPH5IQ9do",
-      "mbGn2aJWrZthNqbbcdct-JKOYkYemt3gHpIZ12CpeoM",
-      "mh-nWgpVKhw2OI1mVtdY39ceDaWy-SldE9qOjBH3ZtY"
+      "AkKCLWvoLIImSokt3jM847jCxp3IlaOg6m1bId1gk28",
+      "SxsreJCkjypHHMz7Qd9LzN6QUNv36ys949rBdqoqmGs",
+      "jhfH1LqTFTdbehAsss_8SdN62eWPTDStwSf09zblK8E",
+      "kGTJ99a0bv80aSx5EDNsikbaxtEr3Qa2dksvl59PlKI",
+      "mvhYs_Q3JjQ-QWzi29EqqbL9XkZPsfgaN8sz8Y9J9Tw"
     ]
   },
   "disclosures": [
     {
       "name": "given_name",
       "value": "Erika",
-      "salt": "3oP-8ye654ghzjmr5cL-hw",
-      "json": "[\"3oP-8ye654ghzjmr5cL-hw\",\"given_name\",\"Erika\"]",
-      "disclosure": "WyIzb1AtOHllNjU0Z2h6am1yNWNMLWh3IiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
-      "digest": "l0vSvCn-Lj8vmLMeoJvafAsnr_Luo-IX5OsRQu4HNo0"
+      "salt": "KDQgfr1wOoc15nAKr1Os8A",
+      "json": "[\"KDQgfr1wOoc15nAKr1Os8A\",\"given_name\",\"Erika\"]",
+      "disclosure": "WyJLRFFnZnIxd09vYzE1bkFLcjFPczhBIiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
+      "digest": "mvhYs_Q3JjQ-QWzi29EqqbL9XkZPsfgaN8sz8Y9J9Tw"
     },
     {
       "name": "family_name",
       "value": "Mustermann",
-      "salt": "3sadzIF05-71NWiZEuyOkg",
-      "json": "[\"3sadzIF05-71NWiZEuyOkg\",\"family_name\",\"Mustermann\"]",
-      "disclosure": "WyIzc2FkeklGMDUtNzFOV2laRXV5T2tnIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
-      "digest": "mh-nWgpVKhw2OI1mVtdY39ceDaWy-SldE9qOjBH3ZtY"
+      "salt": "C4ieWftF_MVYKRfpvnDI4A",
+      "json": "[\"C4ieWftF_MVYKRfpvnDI4A\",\"family_name\",\"Mustermann\"]",
+      "disclosure": "WyJDNGllV2Z0Rl9NVllLUmZwdm5ESTRBIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
+      "digest": "kGTJ99a0bv80aSx5EDNsikbaxtEr3Qa2dksvl59PlKI"
     },
     {
       "name": "birthdate",
       "value": "1963-08-12",
-      "salt": "-W3-eQxoi1M5Zyr8lsKUGg",
-      "json": "[\"-W3-eQxoi1M5Zyr8lsKUGg\",\"birthdate\",\"1963-08-12\"]",
-      "disclosure": "WyItVzMtZVF4b2kxTTVaeXI4bHNLVUdnIiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
-      "digest": "mbGn2aJWrZthNqbbcdct-JKOYkYemt3gHpIZ12CpeoM"
+      "salt": "tdfTLMX-V_xfkCuSTu7wKA",
+      "json": "[\"tdfTLMX-V_xfkCuSTu7wKA\",\"birthdate\",\"1963-08-12\"]",
+      "disclosure": "WyJ0ZGZUTE1YLVZfeGZrQ3VTVHU3d0tBIiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
+      "digest": "SxsreJCkjypHHMz7Qd9LzN6QUNv36ys949rBdqoqmGs"
     },
     {
       "name": "age_over_18",
       "value": true,
-      "salt": "GPnleTgeZvbC3UJnPBvrNA",
-      "json": "[\"GPnleTgeZvbC3UJnPBvrNA\",\"age_over_18\",true]",
-      "disclosure": "WyJHUG5sZVRnZVp2YkMzVUpuUEJ2ck5BIiwiYWdlX292ZXJfMTgiLHRydWVd",
-      "digest": "mUZnztMT17KjYO7VvnQjrxk28oXdfwPi-IyPH5IQ9do"
+      "salt": "GeJchNXd0RUlGYp5psEGZQ",
+      "json": "[\"GeJchNXd0RUlGYp5psEGZQ\",\"age_over_18\",true]",
+      "disclosure": "WyJHZUpjaE5YZDBSVWxHWXA1cHNFR1pRIiwiYWdlX292ZXJfMTgiLHRydWVd",
+      "digest": "AkKCLWvoLIImSokt3jM847jCxp3IlaOg6m1bId1gk28"
     },
     {
       "name": "height",
       "value": 175,
-      "salt": "5HwsN4aPSwq3kEHPQNO6Lg",
-      "json": "[\"5HwsN4aPSwq3kEHPQNO6Lg\",\"height\",175]",
-      "disclosure": "WyI1SHdzTjRhUFN3cTNrRUhQUU5PNkxnIiwiaGVpZ2h0IiwxNzVd",
-      "digest": "XmfUXfXznzj4nVfrQBbQlqA4k26wQkjGx1wzKddxB84"
+      "salt": "RYwRCiIWofPUs9CKcHmwbg",
+      "json": "[\"RYwRCiIWofPUs9CKcHmwbg\",\"height\",175]",
+      "disclosure": "WyJSWXdSQ2lJV29mUFVzOUNLY0htd2JnIiwiaGVpZ2h0IiwxNzVd",
+      "digest": "jhfH1LqTFTdbehAsss_8SdN62eWPTDStwSf09zblK8E"
     }
   ]
 }

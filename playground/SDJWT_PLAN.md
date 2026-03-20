@@ -69,15 +69,18 @@ substring의 prefix 모호성(`18`⊂`180`)이 원천 소거된다. (레퍼런�
 - **M3 ✅** (실제 ZK): exp(M3a) + `_sd` 멤버십(M3b) + 구조 추출(M3c)을 CompilerBackend로
   컴파일 → ZkProver/ZkVerifier로 prove/verify ACCEPT (~1.4s, proof ~239KB). `native/sdjwt_zk.cc`.
   불리언 `age_over_18:true`까지 ZK 동작. (SHA witness를 회로 입력으로 선언/충전.)
-- **M5 (남음)**: ECDSA 프론트엔드(발급자 서명 + KB 서명 + header.payload SHA) 결합 →
-  실제 SD-JWT에서 witness 빌더(VerifyWitness3·FlatSHA256Witness 재사용, 인덱스 산출) →
-  `sdjwt_cli` + Node 데모(issue→present→verify, 위조/만료 거부).
-- **M6 (남음)**: 회로 캐시, 문서.
+- **M5 ✅** (실제 ZK, full): 발급자 ES256 서명(VerifyWitness3 직접) + header.payload SHA +
+  payload base64 디코드 + exp + `_sd` 멤버십 + 구조 추출을 **하나의 회로**로 컴파일,
+  실제 SD-JWT-VC fixture에서 ZK prove/verify. `native/sdjwt_full.cc`, `pnpm run demo:sdjwt-zk`.
+  - 증명: "발급자 서명 유효 + 만료 안 됨 + age_over_18 ∈ _sd = **true(불리언)**" (서명·다른
+    클레임·salt 비공개). ACCEPT (proof ~408KB, ninputs ~31k, ~10s). 만료 시 REJECT.
+  - **갓 발급한 새 토큰에서도 동작** → witness 빌더가 임의 실제 토큰을 파싱.
+  - KB(홀더 바인딩)는 제외(이미 jwt_cli에서 동작; 추가는 기계적). cnf 포맷 의존 회피 위해
+    JWTWitness 대신 VerifyWitness3 직접 사용.
+- **M6 (남음/선택)**: 회로 캐시, 다속성 동시, KB 결합, 문서.
 
-> 현재 상태: **서명을 제외한 SD-JWT 검증 로직 전체가 실제 ZK 증명으로 동작**
-> (exp·SHA·멤버십·구조, 불리언 포함). 남은 M5는 새 암호 발명이 아니라 "기존 ECDSA(이미
-> jwt.h/jwt_cli에서 동작)를 앞에 붙이고 실제 토큰에서 witness를 만들어 Node로 잇는"
-> 통합 작업 — 가장 큰 단일 단계(ECDSA witness 재구성이 핵심).
+> 현재 상태: **mdoc급 SD-JWT-VC 선택공개 ZK가 실제 토큰에서 end-to-end 동작.**
+> 모든 값 타입(불리언 `age_over_18:true` 포함) + 유효기간(exp)을, 파싱 없이 `_sd` 멤버십으로.
 
 ## 리스크 / 공수
 

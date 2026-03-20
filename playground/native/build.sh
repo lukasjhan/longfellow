@@ -72,4 +72,14 @@ echo ">> compiling sdjwt_zk (SD-JWT Approach-C real ZK circuit)"
   -lcrypto -lzstd -lpthread \
   -o "$HERE/sdjwt_zk"
 
-echo ">> done: longfellow_cli, jwt_cli, sdjwt_eval, sdjwt_zk"
+# --- 7. compile the full SD-JWT-VC ZK proof (M5) ----------------------------
+echo ">> compiling sdjwt_full (full SD-JWT-VC selective-disclosure ZK)"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul \
+  -I"$LIB" \
+  "$HERE/sdjwt_full.cc" \
+  "$BASE64_OBJ" \
+  "$BUILD/circuits/mdoc/libmdoc_static.a" \
+  -lcrypto -lzstd -lpthread \
+  -o "$HERE/sdjwt_full"
+
+echo ">> done: longfellow_cli, jwt_cli, sdjwt_eval, sdjwt_zk, sdjwt_full"

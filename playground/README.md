@@ -80,17 +80,25 @@ node src/demo-jwt.js 1 family_name Mustermann      # 다른 토큰/속성
 > 속성만** 증명 가능(`age_over_18:true` 같은 불리언/숫자는 불가). 회로 캐시도 없어
 > prove/verify가 매번 회로를 빌드합니다(각 ~5초).
 
-#### 진행 중: mdoc급 SD-JWT-VC (Approach C)
+#### ✅ mdoc급 SD-JWT-VC 선택공개 ZK (Approach C)
 
-위 substring 한계를 넘어, **표준 SD-JWT-VC의 `_sd` Disclosure 멤버십**으로 모든
-타입 + 유효기간(exp) + Key Binding을 지원하는 회로를 설계 중입니다. 설계·마일스톤은
-[`SDJWT_PLAN.md`](SDJWT_PLAN.md). 현재 M1(데이터·레퍼런스) 완료:
+위 substring 한계를 넘어, **표준 SD-JWT-VC의 `_sd` Disclosure 멤버십**으로 **모든
+값 타입 + 유효기간(exp)** 을 지원하는 실제 ZK 회로를 구현했습니다(설계: [`SDJWT_PLAN.md`](SDJWT_PLAN.md)).
 
 ```bash
-pnpm run gen:sdjwt      # 실제 ES256 SD-JWT-VC 발급 → fixtures/ (deps 필요: node_modules 심볼릭링크)
-pnpm run decode:sdjwt   # 의존성 없이 disclosure 해시가 _sd에 있는지 검증 (회로가 할 일의 레퍼런스)
+pnpm run gen:sdjwt       # 실제 ES256 SD-JWT-VC 발급 → fixtures/ (deps: node_modules 심볼릭링크)
+pnpm run decode:sdjwt    # 의존성 없이 disclosure 해시 ∈ _sd 검증 (회로가 할 일의 평문 레퍼런스)
+pnpm run eval:sdjwt      # 신규 서브회로(exp·SHA·멤버십·구조) eval 검증
+pnpm run demo:sdjwt-zk   # ⭐ 실제 ZK: issue → present → verify (age_over_18=true), 만료 시 REJECT
 ```
-→ 문자열/날짜/불리언/숫자 모두 `_sd` 멤버십으로 검증됨을 확인(파싱 불필요).
+
+`demo:sdjwt-zk`는 발급자 ES256 서명 + `now≤exp` + `age_over_18 ∈ _sd = true(불리언)`를
+**하나의 ZK 증명**으로 prove/verify합니다(서명·다른 클레임·salt 비공개). substring
+방식이 못 하던 **불리언/숫자/날짜**가 `_sd` 멤버십 덕에 전부 안전합니다(파싱 불필요).
+
+> 핵심: mdoc도 SD-JWT도 "클레임별 salt+해시 → 서명된 다이제스트 집합 멤버십"으로
+> 선택공개. 회로 빌딩블록(ECDSA·SHA·base64)은 longfellow 재사용, 신규는 멤버십·구조·exp.
+> (Key Binding은 jwt_cli에서 별도 동작; 통합은 후속 과제.)
 
 단계별 실행도 가능합니다(상태는 `artifacts/`에 저장):
 

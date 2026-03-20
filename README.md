@@ -49,14 +49,18 @@ ZK로 증명"** 을 두 빌딩블록으로 해결합니다.
 
 ### 지원 포맷 현황 (코드 기준)
 
-| 포맷 | 공개 C API | 비고 |
+| 포맷 | 공개 C API | 플레이그라운드 ZK |
 |---|---|---|
-| **mdoc (ISO 18013-5)** | ✅ 있음 | `generate_circuit`/`run_mdoc_prover`/`run_mdoc_verifier` |
-| **SD-JWT(+KB)** | ⚠️ 실험 회로 | `circuits/tests/jwt/`. 공개 API 없음 → 플레이그라운드가 하니스로 구동(문자열 속성만) |
-| W3C VC | ❌ 없음 | 논문/README의 지향점일 뿐 |
+| **mdoc (ISO 18013-5)** | ✅ 있음 | ✅ present/verify (`demo`, `demo:multi`) — 전 타입 |
+| **SD-JWT (substring)** | ⚠️ 실험 회로 | ✅ 문자열 속성 (`demo:jwt`) — longfellow JWT 회로 하니스 |
+| **SD-JWT-VC (`_sd` 멤버십)** | ❌ (직접 구현) | ✅ **전 타입 + exp** (`demo:sdjwt-zk`) — Approach C 신규 회로 |
+| W3C VC | ❌ 없음 | 미지원 |
 
-> 플레이그라운드는 **mdoc**(완전 지원)와 **SD-JWT**(실험 회로 하니스) 둘 다
-> 영지식 present/verify가 동작합니다. SD-JWT는 `pnpm run demo:jwt` 참고.
+> 플레이그라운드는 세 가지 ZK 경로가 동작합니다:
+> - **mdoc** — 완전 지원(공개 API), 모든 타입.
+> - **SD-JWT(substring)** — longfellow 실험 회로, 문자열만.
+> - **SD-JWT-VC(`_sd` 멤버십, Approach C)** — 우리가 직접 구현한 회로로 **불리언·숫자·날짜
+>   + 유효기간(exp)** 까지 mdoc급. `pnpm run demo:sdjwt-zk`. (설계: `playground/SDJWT_PLAN.md`)
 
 ⚠️ longfellow는 mdoc를 **발급하지 않습니다.** 이미 ECDSA 서명된 mdoc에 대해
 **present/verify만** 합니다(발급은 별도 라이브러리 몫).

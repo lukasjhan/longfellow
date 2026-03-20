@@ -13,6 +13,7 @@ playground/native/longfellow_cli
 playground/native/jwt_cli
 playground/native/sdjwt_eval
 playground/native/sdjwt_zk
+playground/native/sdjwt_full
 playground/native/*.o
 
 # --- node ---
