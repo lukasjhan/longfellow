@@ -66,7 +66,7 @@ function main() {
   console.log('  token:', compact.length, 'chars,', compact.split('~').length - 1, 'disclosures');
 
   console.log('\n' + '─'.repeat(70));
-  console.log('  [2] PRESENT + VERIFY — ZK prove "age_over_18=true ∈ _sd, not expired"');
+  console.log('  [2] PRESENT + VERIFY — ZK prove 3 attrs (given_name+age_over_18+height) ∈ _sd, not expired');
   line();
   const v1 = runFull(1700000000); // now < exp
   process.stdout.write(v1.out.split('\n').filter((l) => /circuit:|proof:|result:/.test(l)).map((l) => '  ' + l.trim()).join('\n') + '\n');
