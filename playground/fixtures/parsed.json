@@ -2,65 +2,65 @@
   "payload": {
     "iss": "https://issuer.example/eudi",
     "vct": "https://credentials.example/pid",
-    "iat": 1779541188,
-    "exp": 1782133188,
+    "iat": 1779541899,
+    "exp": 1782133899,
     "cnf": {
       "jwk": {
         "kty": "EC",
-        "x": "pbZ9-y-AEt2D_mjAg7mvf0_Au7gQu9NBSGQ2MwDN-tk",
-        "y": "FdfqrInJ0cotpEc3CjJ0WyHEpOwVWDnJD8DLy2F7v0Q",
+        "x": "xdCGLx4K-Ph2RRn9Gk2Jn9d3xMFJRAbz8Zp8tzwWA7I",
+        "y": "6zrtt0SjSMNedsSVbUbM9-zUdLSUsXEAkdnEVJm9ou4",
         "crv": "P-256"
       }
     },
     "_sd_alg": "sha-256",
     "_sd": [
-      "AkKCLWvoLIImSokt3jM847jCxp3IlaOg6m1bId1gk28",
-      "SxsreJCkjypHHMz7Qd9LzN6QUNv36ys949rBdqoqmGs",
-      "jhfH1LqTFTdbehAsss_8SdN62eWPTDStwSf09zblK8E",
-      "kGTJ99a0bv80aSx5EDNsikbaxtEr3Qa2dksvl59PlKI",
-      "mvhYs_Q3JjQ-QWzi29EqqbL9XkZPsfgaN8sz8Y9J9Tw"
+      "SIDjmNuptXy3H5byt5qPB30tYsdw8HsRZiBPveUaNV4",
+      "cHcMZjsfcfBF0Pt89d_38C0JTfhuTBTUjdedRZP843c",
+      "k0ZgWS0FS6zsU6yUIWD5sKIaXrTHIR_jQ_nO_zPhK5o",
+      "nvQ5U4CpgZYPpINqlQLuMjhcj_dNRdTkFri61Kkf81A",
+      "rikMCMJpXdUVVPkYgYK9zC42Ohl_I4Hg3c7CYEUK2Wg"
     ]
   },
   "disclosures": [
     {
       "name": "given_name",
       "value": "Erika",
-      "salt": "KDQgfr1wOoc15nAKr1Os8A",
-      "json": "[\"KDQgfr1wOoc15nAKr1Os8A\",\"given_name\",\"Erika\"]",
-      "disclosure": "WyJLRFFnZnIxd09vYzE1bkFLcjFPczhBIiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
-      "digest": "mvhYs_Q3JjQ-QWzi29EqqbL9XkZPsfgaN8sz8Y9J9Tw"
+      "salt": "TALmCDOgpNX580Ftcyoa6A",
+      "json": "[\"TALmCDOgpNX580Ftcyoa6A\",\"given_name\",\"Erika\"]",
+      "disclosure": "WyJUQUxtQ0RPZ3BOWDU4MEZ0Y3lvYTZBIiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
+      "digest": "k0ZgWS0FS6zsU6yUIWD5sKIaXrTHIR_jQ_nO_zPhK5o"
     },
     {
       "name": "family_name",
       "value": "Mustermann",
-      "salt": "C4ieWftF_MVYKRfpvnDI4A",
-      "json": "[\"C4ieWftF_MVYKRfpvnDI4A\",\"family_name\",\"Mustermann\"]",
-      "disclosure": "WyJDNGllV2Z0Rl9NVllLUmZwdm5ESTRBIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
-      "digest": "kGTJ99a0bv80aSx5EDNsikbaxtEr3Qa2dksvl59PlKI"
+      "salt": "CFo75IpizX7BZuKxerqXug",
+      "json": "[\"CFo75IpizX7BZuKxerqXug\",\"family_name\",\"Mustermann\"]",
+      "disclosure": "WyJDRm83NUlwaXpYN0JadUt4ZXJxWHVnIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
+      "digest": "SIDjmNuptXy3H5byt5qPB30tYsdw8HsRZiBPveUaNV4"
     },
     {
       "name": "birthdate",
       "value": "1963-08-12",
-      "salt": "tdfTLMX-V_xfkCuSTu7wKA",
-      "json": "[\"tdfTLMX-V_xfkCuSTu7wKA\",\"birthdate\",\"1963-08-12\"]",
-      "disclosure": "WyJ0ZGZUTE1YLVZfeGZrQ3VTVHU3d0tBIiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
-      "digest": "SxsreJCkjypHHMz7Qd9LzN6QUNv36ys949rBdqoqmGs"
+      "salt": "QP02qixpDGVssYFsM34iIw",
+      "json": "[\"QP02qixpDGVssYFsM34iIw\",\"birthdate\",\"1963-08-12\"]",
+      "disclosure": "WyJRUDAycWl4cERHVnNzWUZzTTM0aUl3IiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
+      "digest": "rikMCMJpXdUVVPkYgYK9zC42Ohl_I4Hg3c7CYEUK2Wg"
     },
     {
       "name": "age_over_18",
       "value": true,
-      "salt": "GeJchNXd0RUlGYp5psEGZQ",
-      "json": "[\"GeJchNXd0RUlGYp5psEGZQ\",\"age_over_18\",true]",
-      "disclosure": "WyJHZUpjaE5YZDBSVWxHWXA1cHNFR1pRIiwiYWdlX292ZXJfMTgiLHRydWVd",
-      "digest": "AkKCLWvoLIImSokt3jM847jCxp3IlaOg6m1bId1gk28"
+      "salt": "ahOxVneZPeBEnPUO0Si-ng",
+      "json": "[\"ahOxVneZPeBEnPUO0Si-ng\",\"age_over_18\",true]",
+      "disclosure": "WyJhaE94Vm5lWlBlQkVuUFVPMFNpLW5nIiwiYWdlX292ZXJfMTgiLHRydWVd",
+      "digest": "nvQ5U4CpgZYPpINqlQLuMjhcj_dNRdTkFri61Kkf81A"
     },
     {
       "name": "height",
       "value": 175,
-      "salt": "RYwRCiIWofPUs9CKcHmwbg",
-      "json": "[\"RYwRCiIWofPUs9CKcHmwbg\",\"height\",175]",
-      "disclosure": "WyJSWXdSQ2lJV29mUFVzOUNLY0htd2JnIiwiaGVpZ2h0IiwxNzVd",
-      "digest": "jhfH1LqTFTdbehAsss_8SdN62eWPTDStwSf09zblK8E"
+      "salt": "kRyPzAMiKQ_LzQ_tdEdGug",
+      "json": "[\"kRyPzAMiKQ_LzQ_tdEdGug\",\"height\",175]",
+      "disclosure": "WyJrUnlQekFNaUtRX0x6UV90ZEVkR3VnIiwiaGVpZ2h0IiwxNzVd",
+      "digest": "cHcMZjsfcfBF0Pt89d_38C0JTfhuTBTUjdedRZP843c"
     }
   ]
 }

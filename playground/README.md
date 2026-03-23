@@ -92,13 +92,14 @@ pnpm run eval:sdjwt      # 신규 서브회로(exp·SHA·멤버십·구조) eval
 pnpm run demo:sdjwt-zk   # ⭐ 실제 ZK: issue → present → verify (age_over_18=true), 만료 시 REJECT
 ```
 
-`demo:sdjwt-zk`는 발급자 ES256 서명 + `now≤exp` + `age_over_18 ∈ _sd = true(불리언)`를
-**하나의 ZK 증명**으로 prove/verify합니다(서명·다른 클레임·salt 비공개). substring
-방식이 못 하던 **불리언/숫자/날짜**가 `_sd` 멤버십 덕에 전부 안전합니다(파싱 불필요).
+`demo:sdjwt-zk`는 **발급자 ES256 서명 + 홀더 Key Binding + `now≤exp` + 3속성
+(given_name·age_over_18·height = 문자열·불리언·숫자) ∈ `_sd`** 를 **하나의 ZK 증명**으로
+prove/verify합니다(서명·다른 클레임·salt·디바이스키 비공개). substring 방식이 못 하던
+**불리언/숫자/날짜**가 `_sd` 멤버십 덕에 전부 안전합니다(파싱 불필요).
 
 > 핵심: mdoc도 SD-JWT도 "클레임별 salt+해시 → 서명된 다이제스트 집합 멤버십"으로
 > 선택공개. 회로 빌딩블록(ECDSA·SHA·base64)은 longfellow 재사용, 신규는 멤버십·구조·exp.
-> (Key Binding은 jwt_cli에서 별도 동작; 통합은 후속 과제.)
+> Key Binding은 홀더 서명을 검증하고 디바이스키를 payload의 cnf.jwk에 바인딩합니다.
 
 단계별 실행도 가능합니다(상태는 `artifacts/`에 저장):
 

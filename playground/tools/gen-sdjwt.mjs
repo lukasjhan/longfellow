@@ -69,8 +69,22 @@ async function main() {
     .setProtectedHeader({ alg: 'ES256', typ: 'dc+sd-jwt' })
     .sign(issuer.privateKey);
 
-  // Compact SD-JWT: issuer JWT, then each disclosure, then trailing '~'.
-  const compact = jwt + '~' + disclosures.map((d) => d.disclosure).join('~') + '~';
+  // Presented SD-JWT (issuer JWT + disclosures + trailing '~').
+  const sdPart = jwt + '~' + disclosures.map((d) => d.disclosure).join('~') + '~';
+
+  // Key Binding JWT: holder signs over a hash of the presented SD-JWT.
+  const sd_hash = b64url(sha256(new TextEncoder().encode(sdPart)));
+  const kbjwt = await new SignJWT({
+    nonce: '1234567890',
+    aud: 'https://verifier.example',
+    iat: now,
+    sd_hash,
+  })
+    .setProtectedHeader({ alg: 'ES256', typ: 'kb+jwt' })
+    .sign(holder.privateKey);
+
+  // Full compact SD-JWT with Key Binding.
+  const compact = sdPart + kbjwt;
 
   fs.writeFileSync(path.join(OUT, 'sdjwt.txt'), compact);
   fs.writeFileSync(

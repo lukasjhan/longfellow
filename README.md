@@ -53,14 +53,15 @@ ZK로 증명"** 을 두 빌딩블록으로 해결합니다.
 |---|---|---|
 | **mdoc (ISO 18013-5)** | ✅ 있음 | ✅ present/verify (`demo`, `demo:multi`) — 전 타입 |
 | **SD-JWT (substring)** | ⚠️ 실험 회로 | ✅ 문자열 속성 (`demo:jwt`) — longfellow JWT 회로 하니스 |
-| **SD-JWT-VC (`_sd` 멤버십)** | ❌ (직접 구현) | ✅ **전 타입 + exp** (`demo:sdjwt-zk`) — Approach C 신규 회로 |
+| **SD-JWT-VC (`_sd` 멤버십)** | ❌ (직접 구현) | ✅ **전 타입 + exp + Key Binding + 다속성** (`demo:sdjwt-zk`) — Approach C 신규 회로 |
 | W3C VC | ❌ 없음 | 미지원 |
 
 > 플레이그라운드는 세 가지 ZK 경로가 동작합니다:
 > - **mdoc** — 완전 지원(공개 API), 모든 타입.
 > - **SD-JWT(substring)** — longfellow 실험 회로, 문자열만.
 > - **SD-JWT-VC(`_sd` 멤버십, Approach C)** — 우리가 직접 구현한 회로로 **불리언·숫자·날짜
->   + 유효기간(exp)** 까지 mdoc급. `pnpm run demo:sdjwt-zk`. (설계: `playground/SDJWT_PLAN.md`)
+>   + 유효기간(exp) + Key Binding + 다속성 동시공개** 까지 mdoc 패리티 이상. 발급자 서명 +
+>   홀더 KB + 3속성을 한 ZK proof로. `pnpm run demo:sdjwt-zk`. (설계: `playground/SDJWT_PLAN.md`)
 
 ⚠️ longfellow는 mdoc를 **발급하지 않습니다.** 이미 ECDSA 서명된 mdoc에 대해
 **present/verify만** 합니다(발급은 별도 라이브러리 몫).

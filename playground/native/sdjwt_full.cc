@@ -102,6 +102,17 @@ BitW leq_bytes(const LC& L, const v8* a, const v8* b, size_t n) {
   return le;
 }
 
+// Assert that v256 `bits` (LSB-first integer) equals field element `e`.
+void bits_eq_elt(const LC& L, const v256& bits, const EltW& e) {
+  auto twok = L.one();
+  auto est = L.konst(0);
+  for (size_t i = 0; i < 256; ++i) {
+    est = L.axpy(est, twok, L.eval(bits[i]));
+    L.f_.add(twok, twok);
+  }
+  L.assert_eq(est, e);
+}
+
 // =================== per-disclosure inputs ===================
 struct Slot {
   // public: the requested suffix pattern  `","<claim>",<value>]`
@@ -120,6 +131,7 @@ struct Inputs {
   // public
   EltW pkX, pkY;
   v8 now[10];
+  EltW e2;            // KB message hash (verifier computes from kbjwt)
   Slot slot[NATTR];
   // private: front-end
   EltW e_;
@@ -129,12 +141,18 @@ struct Inputs {
   SBW sha[kMaxSHA];
   v8 nb;
   LC::bitvec<LOGM> payload_ind, payload_len, exp_idx;
+  // private: Key Binding
+  EltW dpkx, dpky;            // holder device key (from cnf.jwk)
+  v256 dpkx_bits, dpky_bits;  // its coords as bits (bound to cnf in payload)
+  EcdsaW kb_sig;
+  LC::bitvec<LOGM> cnf_x_idx, cnf_y_idx;
 };
 
 void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
   in.pkX = L.eltw_input();
   in.pkY = L.eltw_input();
   for (size_t i = 0; i < 10; ++i) in.now[i] = L.template vinput<8>();
+  in.e2 = L.eltw_input();
   for (size_t s = 0; s < NATTR; ++s) {
     for (size_t i = 0; i < MAXPAT; ++i) in.slot[s].pattern[i] = L.template vinput<8>();
     in.slot[s].patlen = L.template vinput<8>();
@@ -149,6 +167,13 @@ void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
   in.payload_ind = L.template vinput<LOGM>();
   in.payload_len = L.template vinput<LOGM>();
   in.exp_idx = L.template vinput<LOGM>();
+  in.dpkx = L.eltw_input();
+  in.dpky = L.eltw_input();
+  in.dpkx_bits = L.template vinput<256>();
+  in.dpky_bits = L.template vinput<256>();
+  in.kb_sig.input(L);
+  in.cnf_x_idx = L.template vinput<LOGM>();
+  in.cnf_y_idx = L.template vinput<LOGM>();
   for (size_t s = 0; s < NATTR; ++s) {
     Slot& sl = in.slot[s];
     for (size_t i = 0; i < 64 * MAXB; ++i) sl.disc_pre[i] = L.template vinput<8>();
@@ -190,6 +215,25 @@ void assert_logic(const LC& L, const Inputs& in) {
   v8 ed[10];
   r.shift(in.exp_idx, 10, ed, DECP, dec, zero, 3);
   L.assert1(leq_bytes(L, in.now, ed, 10));
+
+  // Key Binding: holder signed e2 with the device key, and that device key is
+  // the issuer-attested cnf.jwk inside the (hash-committed) payload.
+  ecc.verify_signature3(in.dpkx, in.dpky, in.e2, in.kb_sig);
+  bits_eq_elt(L, in.dpkx_bits, in.dpkx);
+  bits_eq_elt(L, in.dpky_bits, in.dpky);
+  auto check_coord = [&](const LC::bitvec<LOGM>& idx, const v256& bits) {
+    v8 cc[43];
+    r.shift(idx, 43, cc, DECP, dec, zero, 3);
+    v8 cb[33];
+    b64.base64_rawurl_decode(cc, cb, 43);
+    for (size_t j = 0; j < 32; ++j) {
+      v8 tb;
+      for (size_t c = 0; c < 8; ++c) tb[c] = bits[8 * (31 - j) + c];
+      L.assert1(L.eq(8, cb[j].data(), tb.data()));
+    }
+  };
+  check_coord(in.cnf_x_idx, in.dpkx_bits);  // cnf.x in payload == dpkx
+  check_coord(in.cnf_y_idx, in.dpky_bits);  // cnf.y in payload == dpky
 
   // per-disclosure: membership + structural
   for (size_t s = 0; s < NATTR; ++s) {
@@ -328,11 +372,34 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
     if (chosen[s].empty()) { log(ERROR, "claim %s not found", c.claims[s].c_str()); return false; }
   }
 
+  // ---- Key Binding host data ----
+  std::string kbjwt = c.compact.substr(c.compact.rfind('~') + 1);
+  size_t kd1 = kbjwt.find('.'), kd2 = kbjwt.find('.', kd1 + 1);
+  std::string kbmsg = kbjwt.substr(0, kd2);
+  uint8_t kbhash[32];
+  ::SHA256((const uint8_t*)kbmsg.data(), kbmsg.size(), kbhash);
+  Nat e2_nat = nat_from_be(kbhash);
+  Fp256Base::Elt e2 = p256_base.to_montgomery(e2_nat);
+  std::string kbsigraw = b64url_decode(kbjwt.substr(kd2 + 1));
+  if (kbsigraw.size() < 64) { log(ERROR, "bad kb sig"); return false; }
+  Nat kr = nat_from_be((const uint8_t*)kbsigraw.data());
+  Nat ks = nat_from_be((const uint8_t*)kbsigraw.data() + 32);
+  size_t cnf = payload.find("\"cnf\"");
+  size_t xi = payload.find("\"x\":\"", cnf) + 5;
+  size_t yi = payload.find("\"y\":\"", cnf) + 5;
+  std::string x32 = b64url_decode(payload.substr(xi, 43));
+  std::string y32 = b64url_decode(payload.substr(yi, 43));
+  Nat nx = nat_from_be((const uint8_t*)x32.data());
+  Nat ny = nat_from_be((const uint8_t*)y32.data());
+  Fp256Base::Elt dpkx = p256_base.to_montgomery(nx);
+  Fp256Base::Elt dpky = p256_base.to_montgomery(ny);
+
   // ---- public ----
   f.push_back(p256_base.one());
   f.push_back(c.pkX);
   f.push_back(c.pkY);
   for (size_t i = 0; i < 10; ++i) push_v8(f, (uint8_t)c.now[i]);
+  f.push_back(e2);
   for (size_t s = 0; s < NATTR; ++s) {
     std::string dj = b64url_decode(chosen[s]);
     size_t salt_len = dj.find("\",\"") - 2;
@@ -368,6 +435,20 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   f.push_back(d1 + 1, LOGM, p256_base);
   f.push_back(payload_b64.size(), LOGM, p256_base);
   f.push_back(exp_idx, LOGM, p256_base);
+
+  // ---- private Key Binding ----
+  f.push_back(dpkx);
+  f.push_back(dpky);
+  for (size_t i = 0; i < 256; ++i) f.push_back(nx.bit(i), 1, p256_base);
+  for (size_t i = 0; i < 256; ++i) f.push_back(ny.bit(i), 1, p256_base);
+  EcdsaHostW kbw(p256_scalar, p256);
+  if (!kbw.compute_witness(dpkx, dpky, e2_nat, kr, ks)) {
+    log(ERROR, "KB signature invalid");
+    return false;
+  }
+  kbw.fill_witness(f);
+  f.push_back(xi, LOGM, p256_base);
+  f.push_back(yi, LOGM, p256_base);
 
   // ---- private per-slot ----
   for (size_t s = 0; s < NATTR; ++s) {
@@ -442,7 +523,7 @@ int main(int argc, char** argv) {
   c.pkX = p256_base.of_untrusted_string(hex("x_hex").c_str()).value();
   c.pkY = p256_base.of_untrusted_string(hex("y_hex").c_str()).value();
 
-  printf("M6a: compiling %zu-attribute SD-JWT-VC ZK circuit...\n", NATTR);
+  printf("M6: compiling %zu-attr SD-JWT-VC ZK circuit (issuer sig + KB + exp + N×_sd)...\n", NATTR);
   auto C = make_circuit();
   printf("  circuit: ninputs=%zu npub_in=%zu nl=%zu\n", C->ninputs, C->npub_in, C->nl);
   printf("  disclosing: ");
@@ -453,9 +534,9 @@ int main(int argc, char** argv) {
   auto pub = Dense<Fp256Base>(1, C->npub_in);
   if (!fill(W, true, c) || !fill(pub, false, c)) { printf("  fill failed\n"); return 1; }
 
-  printf("M6a: ZK prove/verify...\n");
+  printf("M6: ZK prove/verify...\n");
   bool ok = run_zk(*C, W, pub);
-  printf("  result: %s (%zu attrs disclosed in one ZK proof)\n",
+  printf("  result: %s (%zu attrs + issuer sig + Key Binding + exp, one ZK proof)\n",
          ok ? "ACCEPT ✅" : "REJECT ❌", NATTR);
   return ok ? 0 : 1;
 }

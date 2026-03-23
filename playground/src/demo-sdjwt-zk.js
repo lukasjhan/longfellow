@@ -63,7 +63,8 @@ function main() {
     console.log('  using committed fixture (no node_modules for gen)');
   }
   const compact = fs.readFileSync(FIX, 'utf8').trim();
-  console.log('  token:', compact.length, 'chars,', compact.split('~').length - 1, 'disclosures');
+  const segs = compact.split('~');
+  console.log('  token:', compact.length, 'chars,', Math.max(0, segs.length - 2), 'disclosures + Key Binding');
 
   console.log('\n' + '─'.repeat(70));
   console.log('  [2] PRESENT + VERIFY — ZK prove 3 attrs (given_name+age_over_18+height) ∈ _sd, not expired');
@@ -81,8 +82,9 @@ function main() {
   if (v2.ok) throw new Error('expired credential was accepted!');
 
   console.log('\n' + '═'.repeat(70));
-  console.log('  ✅ M5: full SD-JWT-VC selective-disclosure ZK — mdoc-parity logic');
-  console.log('     (issuer sig + exp + _sd membership + boolean value, in ZK)');
+  console.log('  ✅ full SD-JWT-VC selective-disclosure ZK — mdoc parity & beyond');
+  console.log('     (issuer sig + Key Binding + exp + 3-attr _sd membership,');
+  console.log('      mixed types incl. boolean/number, all in one ZK proof)');
   console.log('═'.repeat(70) + '\n');
 }
 

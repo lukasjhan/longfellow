@@ -77,10 +77,17 @@ substring의 prefix 모호성(`18`⊂`180`)이 원천 소거된다. (레퍼런�
   - **갓 발급한 새 토큰에서도 동작** → witness 빌더가 임의 실제 토큰을 파싱.
   - KB(홀더 바인딩)는 제외(이미 jwt_cli에서 동작; 추가는 기계적). cnf 포맷 의존 회피 위해
     JWTWitness 대신 VerifyWitness3 직접 사용.
-- **M6 (남음/선택)**: 회로 캐시, 다속성 동시, KB 결합, 문서.
+- **M6a ✅** (실제 ZK): **다속성 동시공개** — NATTR(=3) disclosure 슬롯, (name,value)를
+  공개 입력 패턴으로. given_name(문자열)+age_over_18(불리언)+height(숫자)를 한 ZK proof로.
+- **M6b ✅** (실제 ZK): **Key Binding** — 홀더 KB 서명 검증 + dpk를 payload의 cnf.jwk에
+  바인딩(cnf.x/y를 회로 내 base64 디코드해 dpk 비트와 비교). e2는 공개 입력.
+  발급기(gen-sdjwt)가 kbjwt 생성. `pnpm run demo:sdjwt-zk`.
+  → 한 ZK proof에 **발급자 서명 + KB + exp + 3속성 멤버십** 전부 ACCEPT(~461KB, ~13s), 만료 REJECT.
+- **M6c (남음/선택)**: 회로 캐시(현재 매 실행 ~13s 컴파일 포함), W3C VC, 문서.
 
-> 현재 상태: **mdoc급 SD-JWT-VC 선택공개 ZK가 실제 토큰에서 end-to-end 동작.**
-> 모든 값 타입(불리언 `age_over_18:true` 포함) + 유효기간(exp)을, 파싱 없이 `_sd` 멤버십으로.
+> 현재 상태: **mdoc 패리티 이상 달성** — SD-JWT-VC 선택공개 ZK가 실제 토큰에서 end-to-end
+> 동작. 모든 값 타입(불리언/숫자/날짜) + 유효기간(exp) + Key Binding + 다속성 동시공개를,
+> 파싱 없이 `_sd` 멤버십으로.
 
 ## 리스크 / 공수
 
