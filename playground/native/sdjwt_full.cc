@@ -88,6 +88,10 @@ constexpr size_t MAXB = 2;              // SHA blocks per disclosure
 constexpr size_t MAXDD = (64 * MAXB * 6) / 8;
 constexpr size_t MAXPAT = 96;          // max disclosure suffix pattern
 constexpr size_t NATTR = 3;            // disclosures proven at once
+constexpr size_t KBB = 4;              // SHA blocks for KB header.payload (~212B)
+constexpr size_t DECKB = 64 * KBB;     // KB payload decode buffer
+constexpr size_t PB = 18;              // SHA blocks for the presented SD-JWT
+constexpr size_t PRES = 64 * PB;       // presented bytes (issuer-jwt~disc…~)
 
 // =================== shared circuit helpers ===================
 v8 vb(const LC& L, uint8_t c) { return L.template vbit<8>(c); }
@@ -146,6 +150,17 @@ struct Inputs {
   v256 dpkx_bits, dpky_bits;  // its coords as bits (bound to cnf in payload)
   EcdsaW kb_sig;
   LC::bitvec<LOGM> cnf_x_idx, cnf_y_idx;
+  // private: sd_hash binding (Method A) — bind KB to the presented disclosures
+  v8 kb_pre[DECKB];           // KB header.payload bytes (SHA == e2)
+  SBW kb_sha[KBB];
+  v8 kb_nb;
+  v256 e2_bits;               // SHA(kb_pre) bits (== e2)
+  LC::bitvec<LOGM> kb_pl_ind, kb_pl_len, sd_hash_idx;
+  v8 presented[PRES];         // issuer-jwt~disc1~…~discN~  (SHA == sd_hash)
+  SBW pres_sha[PB];
+  v8 pres_nb;
+  v256 pres_hash_bits;
+  LC::bitvec<LOGM> disc_in_pres[NATTR];  // offset of each disclosure in presented
 };
 
 void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
@@ -174,6 +189,19 @@ void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
   in.kb_sig.input(L);
   in.cnf_x_idx = L.template vinput<LOGM>();
   in.cnf_y_idx = L.template vinput<LOGM>();
+  // sd_hash binding
+  for (size_t i = 0; i < DECKB; ++i) in.kb_pre[i] = L.template vinput<8>();
+  for (size_t i = 0; i < KBB; ++i) in.kb_sha[i].input(L);
+  in.kb_nb = L.template vinput<8>();
+  in.e2_bits = L.template vinput<256>();
+  in.kb_pl_ind = L.template vinput<LOGM>();
+  in.kb_pl_len = L.template vinput<LOGM>();
+  in.sd_hash_idx = L.template vinput<LOGM>();
+  for (size_t i = 0; i < PRES; ++i) in.presented[i] = L.template vinput<8>();
+  for (size_t i = 0; i < PB; ++i) in.pres_sha[i].input(L);
+  in.pres_nb = L.template vinput<8>();
+  in.pres_hash_bits = L.template vinput<256>();
+  for (size_t s = 0; s < NATTR; ++s) in.disc_in_pres[s] = L.template vinput<LOGM>();
   for (size_t s = 0; s < NATTR; ++s) {
     Slot& sl = in.slot[s];
     for (size_t i = 0; i < 64 * MAXB; ++i) sl.disc_pre[i] = L.template vinput<8>();
@@ -235,6 +263,29 @@ void assert_logic(const LC& L, const Inputs& in) {
   check_coord(in.cnf_x_idx, in.dpkx_bits);  // cnf.x in payload == dpkx
   check_coord(in.cnf_y_idx, in.dpky_bits);  // cnf.y in payload == dpky
 
+  // sd_hash binding (Method A): the holder's KB commits (via sd_hash) to the
+  // exact presented SD-JWT. Verify that commitment in-circuit.
+  // 1) KB header.payload hashes to e2 (the value the holder signed).
+  sha.assert_message_hash(KBB, in.kb_nb, in.kb_pre, in.e2_bits, in.kb_sha);
+  bits_eq_elt(L, in.e2_bits, in.e2);
+  // 2) decode the KB payload, pull out sd_hash (43 base64url chars -> 32 bytes).
+  v8 kbshift[DECKB];
+  r.shift(in.kb_pl_ind, DECKB, kbshift, DECKB, in.kb_pre, zero, 3);
+  v8 kbdec[DECKB];
+  LC::bitvec<LOGM> kbpl(in.kb_pl_len);
+  b64.base64_rawurl_decode_len(kbshift, kbdec, DECKB, kbpl);
+  v8 sdh_b64[43];
+  r.shift(in.sd_hash_idx, 43, sdh_b64, DECKB, kbdec, zero, 3);
+  v8 sdh[33];
+  b64.base64_rawurl_decode(sdh_b64, sdh, 43);
+  // 3) SHA(presented) and 4) sd_hash == SHA(presented).
+  sha.assert_message_hash(PB, in.pres_nb, in.presented, in.pres_hash_bits, in.pres_sha);
+  for (size_t j = 0; j < 32; ++j) {
+    v8 tb;
+    for (size_t c = 0; c < 8; ++c) tb[c] = in.pres_hash_bits[8 * (31 - j) + c];
+    L.assert1(L.eq(8, sdh[j].data(), tb.data()));
+  }
+
   // per-disclosure: membership + structural
   for (size_t s = 0; s < NATTR; ++s) {
     const Slot& sl = in.slot[s];
@@ -264,6 +315,16 @@ void assert_logic(const LC& L, const Inputs& in) {
     for (size_t j = 0; j < MAXPAT; ++j) {
       auto inrange = L.vlt(j, sl.patlen);
       auto same = L.eq(8, S[j].data(), sl.pattern[j].data());
+      L.assert_implies(inrange, same);
+    }
+
+    // consent binding: this disclosure must appear in `presented` (whose hash
+    // the holder signed as sd_hash) -> disclosed ⊆ holder-presented set.
+    v8 ps[64 * MAXB];
+    r.shift(in.disc_in_pres[s], 64 * MAXB, ps, PRES, in.presented, zero, 3);
+    for (size_t j = 0; j < 64 * MAXB; ++j) {
+      auto inrange = L.vlt(j, sl.disc_len);
+      auto same = L.eq(8, ps[j].data(), sl.disc_pre[j].data());
       L.assert_implies(inrange, same);
     }
   }
@@ -449,6 +510,40 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   kbw.fill_witness(f);
   f.push_back(xi, LOGM, p256_base);
   f.push_back(yi, LOGM, p256_base);
+
+  // ---- private sd_hash binding (Method A) ----
+  std::string presented = c.compact.substr(0, c.compact.rfind('~') + 1);
+  uint8_t pres_in[PRES];
+  FlatSHA256Witness::BlockWitness pres_bw[PB];
+  uint8_t pres_numb = 0;
+  FlatSHA256Witness::transform_and_witness_message(
+      presented.size(), (const uint8_t*)presented.data(), PB, pres_numb, pres_in, pres_bw);
+  uint8_t predig[32];
+  ::SHA256((const uint8_t*)presented.data(), presented.size(), predig);
+
+  std::string kbhp = kbjwt.substr(0, kd2);  // KB header.payload
+  uint8_t kb_in[DECKB];
+  FlatSHA256Witness::BlockWitness kb_bw[KBB];
+  uint8_t kb_numb = 0;
+  FlatSHA256Witness::transform_and_witness_message(
+      kbhp.size(), (const uint8_t*)kbhp.data(), KBB, kb_numb, kb_in, kb_bw);
+  std::string kb_pl_b64 = kbjwt.substr(kd1 + 1, kd2 - kd1 - 1);
+  std::string kb_pl = b64url_decode(kb_pl_b64);
+  size_t sdh_pos = kb_pl.find("\"sd_hash\":\"") + 11;
+
+  for (size_t i = 0; i < DECKB; ++i) push_v8(f, kb_in[i]);
+  for (size_t i = 0; i < KBB; ++i) fill_sha(f, enc, kb_bw[i]);
+  push_v8(f, kb_numb);
+  for (size_t i = 0; i < 256; ++i) f.push_back(e2_nat.bit(i), 1, p256_base);
+  f.push_back(kd1 + 1, LOGM, p256_base);
+  f.push_back(kb_pl_b64.size(), LOGM, p256_base);
+  f.push_back(sdh_pos, LOGM, p256_base);
+  for (size_t i = 0; i < PRES; ++i) push_v8(f, pres_in[i]);
+  for (size_t i = 0; i < PB; ++i) fill_sha(f, enc, pres_bw[i]);
+  push_v8(f, pres_numb);
+  for (size_t i = 0; i < 256; ++i) f.push_back((predig[31 - i / 8] >> (i % 8)) & 1, 1, p256_base);
+  for (size_t s = 0; s < NATTR; ++s)
+    f.push_back(presented.find(chosen[s]), LOGM, p256_base);
 
   // ---- private per-slot ----
   for (size_t s = 0; s < NATTR; ++s) {

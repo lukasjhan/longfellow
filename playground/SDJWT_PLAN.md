@@ -83,11 +83,15 @@ substring의 prefix 모호성(`18`⊂`180`)이 원천 소거된다. (레퍼런�
   바인딩(cnf.x/y를 회로 내 base64 디코드해 dpk 비트와 비교). e2는 공개 입력.
   발급기(gen-sdjwt)가 kbjwt 생성. `pnpm run demo:sdjwt-zk`.
   → 한 ZK proof에 **발급자 서명 + KB + exp + 3속성 멤버십** 전부 ACCEPT(~461KB, ~13s), 만료 REJECT.
-- **M6c (남음/선택)**: 회로 캐시(현재 매 실행 ~13s 컴파일 포함), W3C VC, 문서.
+- **M6c ✅** (실제 ZK): **sd_hash 바인딩 (정석/in-circuit)** — KB가 서명한 `sd_hash`가
+  실제 제시 묶음과 일치함을 회로가 검증. 체인: KB서명→e2→kb_pre(SHA==e2)→payload에서
+  sd_hash 추출→`SHA(presented)==sd_hash`→공개 disclosure들이 presented에 포함.
+  → "공개한 disclosure ⊆ 홀더가 서명한 제시 묶음" 강제. ACCEPT(proof ~572KB, ~27s), 만료 REJECT.
+- **M6d (남음/선택)**: 회로 캐시(현재 매 실행 컴파일 포함), 다속성 N 가변, W3C VC.
 
 > 현재 상태: **mdoc 패리티 이상 달성** — SD-JWT-VC 선택공개 ZK가 실제 토큰에서 end-to-end
-> 동작. 모든 값 타입(불리언/숫자/날짜) + 유효기간(exp) + Key Binding + 다속성 동시공개를,
-> 파싱 없이 `_sd` 멤버십으로.
+> 동작. 모든 값 타입(불리언/숫자/날짜) + 유효기간(exp) + Key Binding + **sd_hash 바인딩** +
+> 다속성 동시공개를, 파싱 없이 `_sd` 멤버십으로.
 
 ## 리스크 / 공수
 

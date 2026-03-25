@@ -99,7 +99,9 @@ prove/verify합니다(서명·다른 클레임·salt·디바이스키 비공개)
 
 > 핵심: mdoc도 SD-JWT도 "클레임별 salt+해시 → 서명된 다이제스트 집합 멤버십"으로
 > 선택공개. 회로 빌딩블록(ECDSA·SHA·base64)은 longfellow 재사용, 신규는 멤버십·구조·exp.
-> Key Binding은 홀더 서명을 검증하고 디바이스키를 payload의 cnf.jwk에 바인딩합니다.
+> Key Binding은 홀더 서명을 검증하고 디바이스키를 payload의 cnf.jwk에 바인딩하며,
+> **sd_hash 바인딩**(정석)으로 `SHA(제시 묶음)==KB의 sd_hash` 를 회로가 검증해
+> "공개한 disclosure ⊆ 홀더가 서명한 제시 묶음"을 강제합니다(disclosure 짜깁기 방지).
 
 단계별 실행도 가능합니다(상태는 `artifacts/`에 저장):
 
