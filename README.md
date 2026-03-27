@@ -53,7 +53,7 @@ ZK로 증명"** 을 두 빌딩블록으로 해결합니다.
 |---|---|---|
 | **mdoc (ISO 18013-5)** | ✅ 있음 | ✅ present/verify (`demo`, `demo:multi`) — 전 타입 |
 | **SD-JWT (substring)** | ⚠️ 실험 회로 | ✅ 문자열 속성 (`demo:jwt`) — longfellow JWT 회로 하니스 |
-| **SD-JWT-VC (`_sd` 멤버십)** | ❌ (직접 구현) | ✅ **전 타입 + exp + Key Binding + sd_hash 바인딩 + 다속성** (`demo:sdjwt-zk`) — Approach C 신규 회로 |
+| **SD-JWT-VC (`_sd` 멤버십)** | ❌ (직접 구현) | ✅ **전 타입 + exp + vct + Key Binding + sd_hash 바인딩 + 다속성(N가변) + 회로캐시** (`demo:sdjwt-zk`) — Approach C 신규 회로 |
 | W3C VC | ❌ 없음 | 미지원 |
 
 > 플레이그라운드는 세 가지 ZK 경로가 동작합니다:

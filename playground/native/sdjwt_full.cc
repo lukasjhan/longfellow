@@ -15,12 +15,16 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <chrono>
 #include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include <sys/stat.h>
+
 #include <openssl/sha.h>
+#include <zstd.h>
 
 #include "algebra/convolution.h"
 #include "algebra/fp2.h"
@@ -38,6 +42,9 @@
 #include "circuits/sha/flatsha256_witness.h"
 #include "circuits/tests/base64/decode.h"
 #include "ec/p256.h"
+#include "proto/circuit_io.h"
+#include "proto/circuit_reader.h"
+#include "proto/circuit_writer.h"
 #include "random/secure_random_engine.h"
 #include "random/transcript.h"
 #include "sumcheck/circuit.h"
@@ -87,7 +94,8 @@ constexpr size_t LOGM = 11;
 constexpr size_t MAXB = 2;              // SHA blocks per disclosure
 constexpr size_t MAXDD = (64 * MAXB * 6) / 8;
 constexpr size_t MAXPAT = 96;          // max disclosure suffix pattern
-constexpr size_t NATTR = 3;            // disclosures proven at once
+constexpr size_t MAXVCT = 80;          // max `"vct":"<value>"` pattern
+// number of disclosures (nattr) is now a runtime parameter
 constexpr size_t KBB = 4;              // SHA blocks for KB header.payload (~212B)
 constexpr size_t DECKB = 64 * KBB;     // KB payload decode buffer
 constexpr size_t PB = 18;              // SHA blocks for the presented SD-JWT
@@ -135,8 +143,10 @@ struct Inputs {
   // public
   EltW pkX, pkY;
   v8 now[10];
+  v8 vct_pat[MAXVCT];  // requested `"vct":"<type>"` (public)
+  v8 vct_len;
   EltW e2;            // KB message hash (verifier computes from kbjwt)
-  Slot slot[NATTR];
+  std::vector<Slot> slot;
   // private: front-end
   EltW e_;
   EcdsaW sig;
@@ -144,7 +154,7 @@ struct Inputs {
   v256 e_bits;
   SBW sha[kMaxSHA];
   v8 nb;
-  LC::bitvec<LOGM> payload_ind, payload_len, exp_idx;
+  LC::bitvec<LOGM> payload_ind, payload_len, exp_idx, vct_idx;
   // private: Key Binding
   EltW dpkx, dpky;            // holder device key (from cnf.jwk)
   v256 dpkx_bits, dpky_bits;  // its coords as bits (bound to cnf in payload)
@@ -160,15 +170,20 @@ struct Inputs {
   SBW pres_sha[PB];
   v8 pres_nb;
   v256 pres_hash_bits;
-  LC::bitvec<LOGM> disc_in_pres[NATTR];  // offset of each disclosure in presented
+  std::vector<LC::bitvec<LOGM>> disc_in_pres;  // offset of each disclosure in presented
 };
 
-void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
+void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in,
+                    size_t nattr) {
+  in.slot.resize(nattr);
+  in.disc_in_pres.resize(nattr);
   in.pkX = L.eltw_input();
   in.pkY = L.eltw_input();
   for (size_t i = 0; i < 10; ++i) in.now[i] = L.template vinput<8>();
+  for (size_t i = 0; i < MAXVCT; ++i) in.vct_pat[i] = L.template vinput<8>();
+  in.vct_len = L.template vinput<8>();
   in.e2 = L.eltw_input();
-  for (size_t s = 0; s < NATTR; ++s) {
+  for (size_t s = 0; s < nattr; ++s) {
     for (size_t i = 0; i < MAXPAT; ++i) in.slot[s].pattern[i] = L.template vinput<8>();
     in.slot[s].patlen = L.template vinput<8>();
   }
@@ -182,6 +197,7 @@ void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
   in.payload_ind = L.template vinput<LOGM>();
   in.payload_len = L.template vinput<LOGM>();
   in.exp_idx = L.template vinput<LOGM>();
+  in.vct_idx = L.template vinput<LOGM>();
   in.dpkx = L.eltw_input();
   in.dpky = L.eltw_input();
   in.dpkx_bits = L.template vinput<256>();
@@ -201,8 +217,8 @@ void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
   for (size_t i = 0; i < PB; ++i) in.pres_sha[i].input(L);
   in.pres_nb = L.template vinput<8>();
   in.pres_hash_bits = L.template vinput<256>();
-  for (size_t s = 0; s < NATTR; ++s) in.disc_in_pres[s] = L.template vinput<LOGM>();
-  for (size_t s = 0; s < NATTR; ++s) {
+  for (size_t s = 0; s < nattr; ++s) in.disc_in_pres[s] = L.template vinput<LOGM>();
+  for (size_t s = 0; s < nattr; ++s) {
     Slot& sl = in.slot[s];
     for (size_t i = 0; i < 64 * MAXB; ++i) sl.disc_pre[i] = L.template vinput<8>();
     sl.disc_ebits = L.template vinput<256>();
@@ -215,6 +231,7 @@ void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in) {
 }
 
 void assert_logic(const LC& L, const Inputs& in) {
+  size_t nattr = in.slot.size();
   v8 zero = vb(L, 0);
   Routing<LC> r(L);
 
@@ -243,6 +260,12 @@ void assert_logic(const LC& L, const Inputs& in) {
   v8 ed[10];
   r.shift(in.exp_idx, 10, ed, DECP, dec, zero, 3);
   L.assert1(leq_bytes(L, in.now, ed, 10));
+
+  // vct: payload contains the requested `"vct":"<type>"`
+  v8 vs[MAXVCT];
+  r.shift(in.vct_idx, MAXVCT, vs, DECP, dec, zero, 3);
+  for (size_t j = 0; j < MAXVCT; ++j)
+    L.assert_implies(L.vlt(j, in.vct_len), L.eq(8, vs[j].data(), in.vct_pat[j].data()));
 
   // Key Binding: holder signed e2 with the device key, and that device key is
   // the issuer-attested cnf.jwk inside the (hash-committed) payload.
@@ -287,7 +310,7 @@ void assert_logic(const LC& L, const Inputs& in) {
   }
 
   // per-disclosure: membership + structural
-  for (size_t s = 0; s < NATTR; ++s) {
+  for (size_t s = 0; s < nattr; ++s) {
     const Slot& sl = in.slot[s];
 
     // SHA(disclosure) == disc_ebits
@@ -330,12 +353,12 @@ void assert_logic(const LC& L, const Inputs& in) {
   }
 }
 
-std::unique_ptr<Circuit<Fp256Base>> make_circuit() {
+std::unique_ptr<Circuit<Fp256Base>> make_circuit(size_t nattr) {
   QuadCircuit<Fp256Base> Q(p256_base);
   const CB cbk(&Q);
   const LC L(&cbk, p256_base);
   Inputs in;
-  declare_inputs(L, Q, in);
+  declare_inputs(L, Q, in, nattr);
   assert_logic(L, in);
   return Q.mkcircuit(/*nc=*/1);
 }
@@ -391,6 +414,7 @@ struct Concrete {
   const char* now;
   Fp256Base::Elt pkX, pkY;
   std::vector<std::string> claims;  // names to disclose (NATTR of them)
+  std::string vct;                  // expected credential type
 };
 
 void push_v8(DenseFiller<Fp256Base>& f, uint8_t b) { f.push_back(b, 8, p256_base); }
@@ -406,6 +430,7 @@ void fill_sha(DenseFiller<Fp256Base>& f, BitPluckerEncoder<Fp256Base, kPluck>& e
 }
 
 bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
+  size_t nattr = c.claims.size();
   DenseFiller<Fp256Base> f(W);
   BitPluckerEncoder<Fp256Base, kPluck> enc(p256_base);
 
@@ -425,8 +450,8 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
     }
   }
   // pick the disclosure for each requested claim
-  std::vector<std::string> chosen(NATTR);
-  for (size_t s = 0; s < NATTR; ++s) {
+  std::vector<std::string> chosen(nattr);
+  for (size_t s = 0; s < nattr; ++s) {
     std::string key = "\"" + c.claims[s] + "\"";
     for (auto& d : discs)
       if (b64url_decode(d).find(key) != std::string::npos) chosen[s] = d;
@@ -460,8 +485,11 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   f.push_back(c.pkX);
   f.push_back(c.pkY);
   for (size_t i = 0; i < 10; ++i) push_v8(f, (uint8_t)c.now[i]);
+  std::string vct_pat = "\"vct\":\"" + c.vct + "\"";
+  for (size_t i = 0; i < MAXVCT; ++i) push_v8(f, i < vct_pat.size() ? (uint8_t)vct_pat[i] : 0);
+  push_v8(f, (uint8_t)vct_pat.size());
   f.push_back(e2);
-  for (size_t s = 0; s < NATTR; ++s) {
+  for (size_t s = 0; s < nattr; ++s) {
     std::string dj = b64url_decode(chosen[s]);
     size_t salt_len = dj.find("\",\"") - 2;
     std::string pat = dj.substr(2 + salt_len);  // `","claim",value]`
@@ -496,6 +524,7 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   f.push_back(d1 + 1, LOGM, p256_base);
   f.push_back(payload_b64.size(), LOGM, p256_base);
   f.push_back(exp_idx, LOGM, p256_base);
+  f.push_back(payload.find(vct_pat), LOGM, p256_base);  // vct_idx
 
   // ---- private Key Binding ----
   f.push_back(dpkx);
@@ -542,11 +571,11 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   for (size_t i = 0; i < PB; ++i) fill_sha(f, enc, pres_bw[i]);
   push_v8(f, pres_numb);
   for (size_t i = 0; i < 256; ++i) f.push_back((predig[31 - i / 8] >> (i % 8)) & 1, 1, p256_base);
-  for (size_t s = 0; s < NATTR; ++s)
+  for (size_t s = 0; s < nattr; ++s)
     f.push_back(presented.find(chosen[s]), LOGM, p256_base);
 
   // ---- private per-slot ----
-  for (size_t s = 0; s < NATTR; ++s) {
+  for (size_t s = 0; s < nattr; ++s) {
     const std::string& disc = chosen[s];
     uint8_t dg[32];
     ::SHA256((const uint8_t*)disc.data(), disc.size(), dg);
@@ -608,7 +637,16 @@ int main(int argc, char** argv) {
   Concrete c;
   c.compact = read_file(fixture);
   c.now = (argc > 3) ? argv[3] : "1700000000";
-  c.claims = {"given_name", "age_over_18", "height"};  // string, boolean, number
+  // argv[4]: comma-separated claim names; argv[5]: expected vct
+  if (argc > 4) {
+    std::string cs = argv[4];
+    size_t p = 0, q;
+    while ((q = cs.find(',', p)) != std::string::npos) { c.claims.push_back(cs.substr(p, q - p)); p = q + 1; }
+    c.claims.push_back(cs.substr(p));
+  } else {
+    c.claims = {"given_name", "age_over_18", "height"};  // string, boolean, number
+  }
+  c.vct = (argc > 5) ? argv[5] : "https://credentials.example/pid";
 
   std::string j = read_file(jwk);
   auto hex = [&](const char* key) {
@@ -617,10 +655,50 @@ int main(int argc, char** argv) {
   };
   c.pkX = p256_base.of_untrusted_string(hex("x_hex").c_str()).value();
   c.pkY = p256_base.of_untrusted_string(hex("y_hex").c_str()).value();
+  size_t nattr = c.claims.size();
 
-  printf("M6: compiling %zu-attr SD-JWT-VC ZK circuit (issuer sig + KB + exp + N×_sd)...\n", NATTR);
-  auto C = make_circuit();
-  printf("  circuit: ninputs=%zu npub_in=%zu nl=%zu\n", C->ninputs, C->npub_in, C->nl);
+  // Circuit cache: the compiled circuit depends only on nattr. Cache it next to
+  // the binary so repeat runs skip the ~20s compile.
+  std::string bindir(argv[0]);
+  size_t sl = bindir.rfind('/');
+  std::string cacheDir = (sl == std::string::npos ? std::string(".") : bindir.substr(0, sl)) + "/../circuits-cache";
+  mkdir(cacheDir.c_str(), 0755);
+  std::string cacheFile = cacheDir + "/sdjwt-" + std::to_string(nattr) + "attr.bin";
+
+  std::unique_ptr<Circuit<Fp256Base>> C;
+  std::ifstream cf(cacheFile, std::ios::binary);
+  auto t0 = std::chrono::steady_clock::now();
+  if (cf.good()) {
+    std::vector<uint8_t> comp((std::istreambuf_iterator<char>(cf)), std::istreambuf_iterator<char>());
+    cf.close();
+    uint64_t osz = 0;
+    memcpy(&osz, comp.data(), 8);
+    std::vector<uint8_t> bytes(osz);
+    ZSTD_decompress(bytes.data(), osz, comp.data() + 8, comp.size() - 8);
+    ReadBuffer rb(bytes);
+    CircuitReader<Fp256Base> rdr(p256_base, P256_ID);
+    C = rdr.from_bytes(rb, /*enforce_circuit_id=*/false);
+    printf("M6: loaded cached %zu-attr circuit (%zu KB compressed)\n", nattr, comp.size() / 1024);
+  } else {
+    printf("M6: compiling %zu-attr SD-JWT-VC ZK circuit (issuer sig + KB + sd_hash + vct + exp + N×_sd)...\n", nattr);
+    C = make_circuit(nattr);
+    std::vector<uint8_t> bytes;
+    CircuitWriter<Fp256Base> wr(p256_base, P256_ID);
+    wr.to_bytes(*C, bytes);
+    size_t bound = ZSTD_compressBound(bytes.size());
+    std::vector<uint8_t> comp(8 + bound);
+    uint64_t osz = bytes.size();
+    memcpy(comp.data(), &osz, 8);
+    size_t csz = ZSTD_compress(comp.data() + 8, bound, bytes.data(), bytes.size(), 6);
+    std::ofstream of(cacheFile, std::ios::binary);
+    of.write((const char*)comp.data(), 8 + csz);
+    printf("M6: compiled + cached %zu-attr circuit (%zu KB compressed from %zu KB)\n",
+           nattr, (8 + csz) / 1024, bytes.size() / 1024);
+  }
+  auto t1 = std::chrono::steady_clock::now();
+  printf("  circuit ready in %ld ms: ninputs=%zu npub_in=%zu nl=%zu\n",
+         (long)std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count(),
+         C->ninputs, C->npub_in, C->nl);
   printf("  disclosing: ");
   for (auto& cl : c.claims) printf("%s ", cl.c_str());
   printf("\n");
@@ -631,7 +709,7 @@ int main(int argc, char** argv) {
 
   printf("M6: ZK prove/verify...\n");
   bool ok = run_zk(*C, W, pub);
-  printf("  result: %s (%zu attrs + issuer sig + Key Binding + exp, one ZK proof)\n",
-         ok ? "ACCEPT ✅" : "REJECT ❌", NATTR);
+  printf("  result: %s (%zu attrs + issuer sig + KB + sd_hash + vct + exp, one ZK proof)\n",
+         ok ? "ACCEPT ✅" : "REJECT ❌", nattr);
   return ok ? 0 : 1;
 }

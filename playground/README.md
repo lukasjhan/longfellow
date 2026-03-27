@@ -83,7 +83,8 @@ node src/demo-jwt.js 1 family_name Mustermann      # 다른 토큰/속성
 #### ✅ mdoc급 SD-JWT-VC 선택공개 ZK (Approach C)
 
 위 substring 한계를 넘어, **표준 SD-JWT-VC의 `_sd` Disclosure 멤버십**으로 **모든
-값 타입 + 유효기간(exp)** 을 지원하는 실제 ZK 회로를 구현했습니다(설계: [`SDJWT_PLAN.md`](SDJWT_PLAN.md)).
+값 타입 + 유효기간(exp) + vct + Key Binding + sd_hash 바인딩 + 다속성(N가변)**을
+지원하는 실제 ZK 회로를 구현했습니다(설계: [`SDJWT_PLAN.md`](SDJWT_PLAN.md)).
 
 ```bash
 pnpm run gen:sdjwt       # 실제 ES256 SD-JWT-VC 발급 → fixtures/ (deps: node_modules 심볼릭링크)
@@ -92,10 +93,19 @@ pnpm run eval:sdjwt      # 신규 서브회로(exp·SHA·멤버십·구조) eval
 pnpm run demo:sdjwt-zk   # ⭐ 실제 ZK: issue → present → verify (age_over_18=true), 만료 시 REJECT
 ```
 
-`demo:sdjwt-zk`는 **발급자 ES256 서명 + 홀더 Key Binding + `now≤exp` + 3속성
-(given_name·age_over_18·height = 문자열·불리언·숫자) ∈ `_sd`** 를 **하나의 ZK 증명**으로
-prove/verify합니다(서명·다른 클레임·salt·디바이스키 비공개). substring 방식이 못 하던
-**불리언/숫자/날짜**가 `_sd` 멤버십 덕에 전부 안전합니다(파싱 불필요).
+`demo:sdjwt-zk`는 **발급자 ES256 서명 + 홀더 Key Binding + sd_hash 바인딩 + vct +
+`now≤exp` + 3속성(given_name·age_over_18·height = 문자열·불리언·숫자) ∈ `_sd`** 를
+**하나의 ZK 증명**으로 prove/verify합니다(서명·다른 클레임·salt·디바이스키 비공개).
+substring 방식이 못 하던 **불리언/숫자/날짜**가 `_sd` 멤버십 덕에 전부 안전합니다(파싱 불필요).
+
+공개 속성 개수·종류는 런타임 가변이고(회로는 N별로 컴파일), 컴파일된 회로는
+zstd 압축 캐시(`circuits-cache/sdjwt-<N>attr.bin`)되어 재실행 시 컴파일(~23s)을 건너뜁니다:
+
+```bash
+# 직접 호출: <fixture> <issuer-jwk> <now> <쉼표구분 claims> <vct>
+native/sdjwt_full fixtures/sdjwt.txt fixtures/issuer-jwk.json 1700000000 \
+  "given_name,age_over_18" "https://credentials.example/pid"
+```
 
 > 핵심: mdoc도 SD-JWT도 "클레임별 salt+해시 → 서명된 다이제스트 집합 멤버십"으로
 > 선택공개. 회로 빌딩블록(ECDSA·SHA·base64)은 longfellow 재사용, 신규는 멤버십·구조·exp.

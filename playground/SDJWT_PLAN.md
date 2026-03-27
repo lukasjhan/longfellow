@@ -87,7 +87,12 @@ substring의 prefix 모호성(`18`⊂`180`)이 원천 소거된다. (레퍼런�
   실제 제시 묶음과 일치함을 회로가 검증. 체인: KB서명→e2→kb_pre(SHA==e2)→payload에서
   sd_hash 추출→`SHA(presented)==sd_hash`→공개 disclosure들이 presented에 포함.
   → "공개한 disclosure ⊆ 홀더가 서명한 제시 묶음" 강제. ACCEPT(proof ~572KB, ~27s), 만료 REJECT.
-- **M6d (남음/선택)**: 회로 캐시(현재 매 실행 컴파일 포함), 다속성 N 가변, W3C VC.
+- **M6d ✅** (실제 ZK): mdoc 대비 갭 마감.
+  - **vct 검증**: payload의 `"vct":"<type>"`를 공개 입력 패턴과 대조 (잘못된 vct → REJECT 확인).
+  - **다속성 N 가변**: NATTR을 런타임 파라미터로(벡터). 2·3·4속성 모두 동작. claims는 argv로 지정.
+  - **회로 캐싱**: CircuitWriter/Reader로 컴파일된 회로를 N별 zstd 압축 캐시
+    (`circuits-cache/sdjwt-<N>attr.bin`, 145MB→~3MB). 재실행 시 **컴파일 ~23s → 로드 ~0.4s**.
+- **M6e (남음/선택)**: 2체 분리(GF2¹²⁸ 해시) 최적화, W3C VC, 공개 API화.
 
 > 현재 상태: **mdoc 패리티 이상 달성** — SD-JWT-VC 선택공개 ZK가 실제 토큰에서 end-to-end
 > 동작. 모든 값 타입(불리언/숫자/날짜) + 유효기간(exp) + Key Binding + **sd_hash 바인딩** +
