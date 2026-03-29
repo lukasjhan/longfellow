@@ -82,4 +82,13 @@ echo ">> compiling sdjwt_full (full SD-JWT-VC selective-disclosure ZK)"
   -lcrypto -lzstd -lpthread \
   -o "$HERE/sdjwt_full"
 
-echo ">> done: longfellow_cli, jwt_cli, sdjwt_eval, sdjwt_zk, sdjwt_full"
+# --- 8. SHA field micro-benchmark (Fp256 vs GF(2^128)) ----------------------
+echo ">> compiling sha_bench (circuit-size: Fp256 vs GF(2^128))"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul \
+  -I"$LIB" \
+  "$HERE/sha_bench.cc" \
+  "$BUILD/circuits/mdoc/libmdoc_static.a" \
+  -lcrypto -lzstd -lpthread \
+  -o "$HERE/sha_bench"
+
+echo ">> done: longfellow_cli, jwt_cli, sdjwt_eval, sdjwt_zk, sdjwt_full, sha_bench"

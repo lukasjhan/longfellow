@@ -14,6 +14,7 @@ playground/native/jwt_cli
 playground/native/sdjwt_eval
 playground/native/sdjwt_zk
 playground/native/sdjwt_full
+playground/native/sha_bench
 playground/native/*.o
 
 # --- node ---
