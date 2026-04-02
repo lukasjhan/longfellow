@@ -91,4 +91,5 @@ echo ">> compiling sha_bench (circuit-size: Fp256 vs GF(2^128))"
   -lcrypto -lzstd -lpthread \
   -o "$HERE/sha_bench"
 
-echo ">> done: longfellow_cli, jwt_cli, sdjwt_eval, sdjwt_zk, sdjwt_full, sha_bench"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_sig.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_sig"
+echo ">> done: ... sdjwt_full, sha_bench, sdjwt_sig"
