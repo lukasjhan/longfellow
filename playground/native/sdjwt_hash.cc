@@ -63,6 +63,7 @@ constexpr size_t kMaxSHA = 13;
 constexpr size_t PRE = 64 * kMaxSHA;
 constexpr size_t DECP = 64 * (kMaxSHA - 2);  // decoded-payload buffer
 constexpr size_t LOGM = 11;
+constexpr size_t MAXVCT = 80;
 constexpr size_t kRate = 7, kNreq = 132, kVer = 7;
 
 v8 vb(const LC& L, uint8_t c) { return L.template vbit<8>(c); }
@@ -83,14 +84,19 @@ std::unique_ptr<Circuit<f_128>> make_hash_circuit(const f_128& Fs) {
   const LC L(&cbk, Fs);
   MAC mac_check(L);
 
-  // public: now[10], mac_e[2], av
+  // public: now[10], vct_pat[MAXVCT], vct_len, mac[7] (mac_e, mac_dpkx, mac_dpky, av)
   v8 now[10];
   for (auto& b : now) b = L.template vinput<8>();
-  MACTag mac[3];
+  v8 vct_pat[MAXVCT];
+  for (auto& b : vct_pat) b = L.template vinput<8>();
+  v8 vct_len = L.template vinput<8>();
+  MACTag mac[7];
   for (auto& m : mac) m = L.eltw_input();
 
   Q.private_input();
   v256 e = L.template vinput<256>();
+  v256 dpkx = L.template vinput<256>();
+  v256 dpky = L.template vinput<256>();
   v8 preimage[PRE];
   for (auto& b : preimage) b = L.template vinput<8>();
   SBW sha[kMaxSHA];
@@ -99,16 +105,18 @@ std::unique_ptr<Circuit<f_128>> make_hash_circuit(const f_128& Fs) {
   LC::bitvec<LOGM> payload_ind = L.template vinput<LOGM>();
   LC::bitvec<LOGM> payload_len = L.template vinput<LOGM>();
   LC::bitvec<LOGM> exp_idx = L.template vinput<LOGM>();
+  LC::bitvec<LOGM> vct_idx = L.template vinput<LOGM>();
+  LC::bitvec<LOGM> cnf_x_idx = L.template vinput<LOGM>();
+  LC::bitvec<LOGM> cnf_y_idx = L.template vinput<LOGM>();
 
   Q.begin_full_field();
-  MACW macw;
-  macw.input(L);
+  MACW macw[3];
+  for (auto& w : macw) w.input(L);
 
   FlatSHA sh(L);
   sh.assert_message_hash(kMaxSHA, nb, preimage, e, sha);
-  mac_check.verify_mac(&mac[0], mac[2], e, macw);
 
-  // decode payload (base64url) out of the signed preimage, then exp check
+  // decode payload (base64url) out of the signed preimage
   Routing<LC> r(L);
   v8 zero = vb(L, 0);
   v8 shbuf[DECP];
@@ -117,9 +125,37 @@ std::unique_ptr<Circuit<f_128>> make_hash_circuit(const f_128& Fs) {
   Base64Decoder<LC> b64(L);
   LC::bitvec<LOGM> plen(payload_len);
   b64.base64_rawurl_decode_len(shbuf, dec, DECP, plen);
+
+  // exp
   v8 ed[10];
   r.shift(exp_idx, 10, ed, DECP, dec, zero, 3);
   L.assert1(leq_bytes(L, now, ed, 10));
+
+  // vct
+  v8 vs[MAXVCT];
+  r.shift(vct_idx, MAXVCT, vs, DECP, dec, zero, 3);
+  for (size_t j = 0; j < MAXVCT; ++j)
+    L.assert_implies(L.vlt(j, vct_len), L.eq(8, vs[j].data(), vct_pat[j].data()));
+
+  // dpk == cnf.{x,y} in the signed payload (binds the MAC'd device key)
+  auto check_coord = [&](const LC::bitvec<LOGM>& idx, const v256& bits) {
+    v8 cc[43];
+    r.shift(idx, 43, cc, DECP, dec, zero, 3);
+    v8 out[33];
+    b64.base64_rawurl_decode(cc, out, 43);
+    for (size_t j = 0; j < 32; ++j) {
+      v8 tb;
+      for (size_t c = 0; c < 8; ++c) tb[c] = bits[8 * (31 - j) + c];
+      L.assert1(L.eq(8, out[j].data(), tb.data()));
+    }
+  };
+  check_coord(cnf_x_idx, dpkx);
+  check_coord(cnf_y_idx, dpky);
+
+  // MACs linking e, dpkx, dpky to the signature circuit
+  mac_check.verify_mac(&mac[0], mac[6], e, macw[0]);
+  mac_check.verify_mac(&mac[2], mac[6], dpkx, macw[1]);
+  mac_check.verify_mac(&mac[4], mac[6], dpky, macw[2]);
 
   return Q.mkcircuit(/*nc=*/1);
 }
@@ -161,17 +197,34 @@ int main(int argc, char** argv) {
   uint8_t numb = 0;
   FlatSHA256Witness::transform_and_witness_message(msg.size(), (const uint8_t*)msg.data(), kMaxSHA, numb, in, bw);
 
-  // MAC over e (32 bytes)
+  // cnf.x / cnf.y from the signed payload -> device key in field-element byte
+  // order (little-endian = reverse of the raw big-endian coordinate).
+  size_t cnf = payload.find("\"cnf\"");
+  size_t xi = payload.find("\"x\":\"", cnf) + 5;
+  size_t yi = payload.find("\"y\":\"", cnf) + 5;
+  std::string cx_raw = b64d(payload.substr(xi, 43));
+  std::string cy_raw = b64d(payload.substr(yi, 43));
+  uint8_t dxb[32], dyb[32];
+  for (size_t i = 0; i < 32; ++i) { dxb[i] = (uint8_t)cx_raw[31 - i]; dyb[i] = (uint8_t)cy_raw[31 - i]; }
+
+  // vct
+  std::string vct = "https://credentials.example/pid";
+  std::string vct_pat = "\"vct\":\"" + vct + "\"";
+  size_t vct_idx = payload.find(vct_pat);
+
+  // MAC keys + values for e, dpkx, dpky (av shared)
   SecureRandomEngine rng;
-  gf2k ap[2];
+  gf2k ap[6];
   MACReference<f_128> mr;
-  mr.sample(ap, 2, &rng);
+  mr.sample(ap, 6, &rng);
   uint8_t avb[16]; rng.bytes(avb, 16);
   gf2k av = Fs.of_bytes_field(avb).value();
-  gf2k mac_e[2];
-  mr.compute(mac_e, av, ap, ebytes);
+  gf2k macs[6];
+  mr.compute(&macs[0], av, &ap[0], ebytes);   // e (reversed digest)
+  mr.compute(&macs[2], av, &ap[2], dxb);      // dpkx
+  mr.compute(&macs[4], av, &ap[4], dyb);      // dpky
 
-  printf("M7-2(min): compiling GF(2^128) hash core (SHA + MACGF2)...\n");
+  printf("M7-2: compiling GF(2^128) hash circuit (SHA+MAC e/dpk + exp + vct + cnf bind)...\n");
   auto C = make_hash_circuit(Fs);
   std::vector<uint8_t> cb; CircuitWriter<f_128> w(Fs, GF2_128_ID); w.to_bytes(*C, cb);
   std::vector<uint8_t> comp(ZSTD_compressBound(cb.size()));
@@ -183,11 +236,16 @@ int main(int argc, char** argv) {
   auto fillpub = [&](DenseFiller<f_128>& f) {
     f.push_back(Fs.one());
     for (int i = 0; i < 10; ++i) f.push_back((uint8_t)now[i], 8, Fs);
-    f.push_back(mac_e[0]); f.push_back(mac_e[1]); f.push_back(av);
+    for (size_t i = 0; i < MAXVCT; ++i) f.push_back(i < vct_pat.size() ? (uint8_t)vct_pat[i] : 0, 8, Fs);
+    f.push_back((uint8_t)vct_pat.size(), 8, Fs);
+    for (int i = 0; i < 6; ++i) f.push_back(macs[i]);
+    f.push_back(av);
   };
   { DenseFiller<f_128> f(W);
     fillpub(f);
     fill_bit_string(f, ebytes, 32, 32, Fs);            // e (v256)
+    fill_bit_string(f, dxb, 32, 32, Fs);               // dpkx (v256)
+    fill_bit_string(f, dyb, 32, 32, Fs);               // dpky (v256)
     for (size_t i = 0; i < PRE; ++i) f.push_back(in[i], 8, Fs);
     BitPluckerEncoder<f_128, 4> enc(Fs);
     for (size_t b = 0; b < kMaxSHA; ++b) {
@@ -199,7 +257,10 @@ int main(int argc, char** argv) {
     f.push_back(d1 + 1, LOGM, Fs);                      // payload_ind
     f.push_back(payload_b64.size(), LOGM, Fs);          // payload_len
     f.push_back(exp_idx, LOGM, Fs);                     // exp_idx
-    f.push_back(ap[0]); f.push_back(ap[1]);            // MACGF2 witness
+    f.push_back(vct_idx, LOGM, Fs);                     // vct_idx
+    f.push_back(xi, LOGM, Fs);                          // cnf_x_idx
+    f.push_back(yi, LOGM, Fs);                          // cnf_y_idx
+    for (int i = 0; i < 6; ++i) f.push_back(ap[i]);     // 3 MACGF2 witnesses (aa_[2] each)
   }
   { DenseFiller<f_128> f(pub); fillpub(f); }
 
