@@ -17,6 +17,7 @@ playground/native/sdjwt_full
 playground/native/sha_bench
 playground/native/sdjwt_sig
 playground/native/sdjwt_hash
+playground/native/sdjwt_split
 playground/native/*.o
 
 # --- node ---

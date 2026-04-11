@@ -93,4 +93,7 @@ echo ">> compiling sha_bench (circuit-size: Fp256 vs GF(2^128))"
 
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_sig.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_sig"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_hash.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_hash"
-echo ">> done: ... sdjwt_full, sha_bench, sdjwt_sig, sdjwt_hash"
+# --- M7-3: the full two-circuit + MAC split (sig + hash), present + verify -----
+echo ">> compiling sdjwt_split (Fp256 sig + GF(2^128) hash, MAC-linked)"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_split.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_split"
+echo ">> done: ... sdjwt_full, sha_bench, sdjwt_sig, sdjwt_hash, sdjwt_split"
