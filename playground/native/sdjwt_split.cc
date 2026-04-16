@@ -15,6 +15,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <chrono>
 #include <functional>
@@ -74,21 +75,46 @@ static std::string b64d(const std::string& s){std::string o;int v=0,b=0;for(char
 static std::string b64e(const uint8_t* d,size_t n){static const char* T="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";std::string o;int v=0,b=0;for(size_t i=0;i<n;++i){v=(v<<8)|d[i];b+=8;while(b>=6){o+=T[(v>>(b-6))&63];b-=6;}}if(b>0)o+=T[(v<<(6-b))&63];return o;}
 static std::string rf(const std::string&p){std::ifstream f(p,std::ios::binary);std::string s((std::istreambuf_iterator<char>(f)),std::istreambuf_iterator<char>());while(!s.empty()&&(s.back()=='\n'||s.back()=='\r'))s.pop_back();return s;}
 
-// One shared MAC key + macs over the three common 32-byte (little-endian) values.
-struct Linker {
-  gf2k ap[6], av, macs[6];
-  void init(SecureRandomEngine& rng, const f_128& gf,
-            const uint8_t e[32], const uint8_t dx[32], const uint8_t dy[32]) {
-    MACReference<f_128> mr;
-    mr.sample(ap, 6, &rng);
-    uint8_t avb[16]; rng.bytes(avb, 16); av = gf.of_bytes_field(avb).value();
-    uint8_t e_[32], dx_[32], dy_[32];
-    memcpy(e_, e, 32); memcpy(dx_, dx, 32); memcpy(dy_, dy, 32);
-    mr.compute(&macs[0], av, &ap[0], e_);
-    mr.compute(&macs[2], av, &ap[2], dx_);
-    mr.compute(&macs[4], av, &ap[4], dy_);
+// The prover's half of the MAC key (a_p). a_v and the macs are derived AFTER
+// commitment (from the transcript) — this is what makes the link sound: the
+// prover commits a_p and the values e/dpkx/dpky before learning a_v, so it
+// cannot make two different e's pass the same public mac (Schwartz-Zippel).
+struct Linker { gf2k ap[6]; };
+
+// a_v = a fresh field element pulled from the (post-commit) transcript.
+gf2k generate_mac_key(Transcript& t, const f_128& gf) {
+  uint8_t buf[f_128::kBytes];
+  t.bytes(buf, f_128::kBytes);
+  return gf.of_bytes_field(buf).value();
+}
+
+// MAC the 3 common Fp256 values (e, dpkx, dpky) -> gmacs[6] (+ bundle bytes).
+void compute_macs(const Fp256Base::Elt x[3], gf2k gmacs[6],
+                  uint8_t macs_b[6 * f_128::kBytes], const gf2k ap[6], gf2k av,
+                  const f_128& gf) {
+  MACReference<f_128> mr;
+  for (int i = 0; i < 3; ++i) {
+    uint8_t buf[32];
+    p256_base.to_bytes_field(buf, x[i]);
+    mr.compute(&gmacs[2 * i], av, &ap[2 * i], buf);
+    gf.to_bytes_field(&macs_b[2 * i * f_128::kBytes], gmacs[2 * i]);
+    gf.to_bytes_field(&macs_b[(2 * i + 1) * f_128::kBytes], gmacs[2 * i + 1]);
   }
-};
+}
+
+// Write macs+av into the dense arrays AT/AFTER commit (public-input wires are not
+// part of the hiding commitment). si/hi point at the first mac wire; sig stores
+// each as 128 bits, hash as one native gf2k. (Mirrors mdoc's update_macs.)
+void update_macs(Dense<Fp256Base>& Ws, Dense<f_128>& Wh, size_t si, size_t hi,
+                 const gf2k gmacs[6], gf2k av) {
+  auto put = [&](const gf2k& m) {
+    for (size_t j = 0; j < f_128::kBits; ++j)
+      Ws.v_[si++] = m[j] ? p256_base.one() : p256_base.zero();
+    Wh.v_[hi++] = m;
+  };
+  for (int mi = 0; mi < 6; ++mi) put(gmacs[mi]);
+  put(av);
+}
 
 struct Result { long prove_ms = 0; size_t proof_kb = 0, circ_kb = 0, ninputs = 0; bool ok = false; };
 
@@ -200,52 +226,31 @@ bool parse(const std::string& compact, const std::string& jwk, Parsed& v) {
   return isig.size() >= 64 && ksig.size() >= 64;
 }
 
-bool run(const Circuit<Fp256Base>& C, const Parsed& v, const Linker& lk, Result& res) {
+// Fill a dense array for the sig circuit. macs6/av go in the public part (zeros
+// during the prover's commit; the real values for the verifier). ap is the
+// shared committed key half (witness). pub_only -> stop after public inputs.
+bool fill(Dense<Fp256Base>& W, bool pub_only, const Parsed& v,
+          const gf2k* ap, const gf2k macs6[6], gf2k av) {
   const f_128 gf;
-  auto W = Dense<Fp256Base>(1, C.ninputs);
-  auto pub = Dense<Fp256Base>(1, C.npub_in);
-  uint8_t buf[32]; Fp256Base::Elt vals[3] = {v.e_, v.dpkx, v.dpky};
-  auto fill_common_pub = [&](DenseFiller<Fp256Base>& f) {
-    f.push_back(p256_base.one()); f.push_back(v.pkX); f.push_back(v.pkY); f.push_back(v.e2);
-    for (int i = 0; i < 6; ++i) push_gf_bits(f, lk.macs[i]);
-    push_gf_bits(f, lk.av);
-  };
-  { DenseFiller<Fp256Base> f(W);
-    fill_common_pub(f);
-    f.push_back(v.e_); f.push_back(v.dpkx); f.push_back(v.dpky);
-    EcdsaHostW isigw(p256_scalar, p256), ksigw(p256_scalar, p256);
-    if (!isigw.compute_witness(v.pkX, v.pkY, v.e_nat, v.ir, v.is)) return false;
-    if (!ksigw.compute_witness(v.dpkx, v.dpky, v.e2_nat, v.kr, v.ks)) return false;
-    isigw.fill_witness(f); ksigw.fill_witness(f);
-    for (int i = 0; i < 3; ++i) {
-      p256_base.to_bytes_field(buf, vals[i]);
-      MacWitness<Fp256Base> mw(p256_base, gf);
-      mw.compute_witness(&lk.ap[2*i], buf);  // SHARED key
-      mw.fill_witness(f);
-    }
+  DenseFiller<Fp256Base> f(W);
+  f.push_back(p256_base.one());
+  f.push_back(v.pkX); f.push_back(v.pkY); f.push_back(v.e2);
+  for (int i = 0; i < 6; ++i) push_gf_bits(f, macs6[i]);
+  push_gf_bits(f, av);
+  if (pub_only) return true;
+  f.push_back(v.e_); f.push_back(v.dpkx); f.push_back(v.dpky);
+  EcdsaHostW isigw(p256_scalar, p256), ksigw(p256_scalar, p256);
+  if (!isigw.compute_witness(v.pkX, v.pkY, v.e_nat, v.ir, v.is)) return false;
+  if (!ksigw.compute_witness(v.dpkx, v.dpky, v.e2_nat, v.kr, v.ks)) return false;
+  isigw.fill_witness(f); ksigw.fill_witness(f);
+  Fp256Base::Elt vals[3] = {v.e_, v.dpkx, v.dpky};
+  for (int i = 0; i < 3; ++i) {
+    uint8_t buf[32]; p256_base.to_bytes_field(buf, vals[i]);
+    MacWitness<Fp256Base> mw(p256_base, gf);
+    mw.compute_witness(&ap[2 * i], buf);  // SHARED, av-independent key
+    mw.fill_witness(f);
   }
-  { DenseFiller<Fp256Base> f(pub); fill_common_pub(f); }
-
-  const f2_p256 p256_2(p256_base);
-  const Elt2 omega = p256_2.of_string(kRootX, kRootY);
-  const FftExt fft(p256_base, p256_2, omega, 1ull << 31);
-  const RSFp rsf(fft, p256_base);
-  SecureRandomEngine rng;
-  ZkProof<Fp256Base> zkp(C, kRate, kNreq);
-  Transcript tp((const uint8_t*)"sig", 3, kVer);
-  ZkProver<Fp256Base, RSFp> prover(C, p256_base, rsf);
-  auto t0 = std::chrono::steady_clock::now();
-  prover.commit(zkp, W, tp, rng);
-  bool pok = prover.prove(zkp, W, tp);
-  res.prove_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-t0).count();
-  std::vector<uint8_t> pb; zkp.write(pb, p256_base);
-  res.proof_kb = pb.size() / 1024; res.ninputs = C.ninputs;
-  ZkProof<Fp256Base> pr(C, kRate, kNreq); ReadBuffer rb(pb); pr.read(rb, p256_base);
-  ZkVerifier<Fp256Base, RSFp> ver(C, rsf, kRate, kNreq, p256_base);
-  Transcript tv((const uint8_t*)"sig", 3, kVer); ver.recv_commitment(pr, tv);
-  bool vok = ver.verify(pr, pub, tv);
-  res.ok = pok && vok;
-  return res.ok;
+  return true;
 }
 }  // namespace sigc
 
@@ -450,9 +455,13 @@ static void fill_sha(DenseFiller<f_128>& f, BitPluckerEncoder<f_128, 4>& enc, co
   for (size_t k = 0; k < 8; ++k) f.push_back(enc.mkpacked_v32(b.h1[k]));
 }
 
-bool run(const Circuit<f_128>& C, const f_128& Fs, const std::string& compact,
-         const char* now, const std::vector<std::string>& claims,
-         const std::string& vct, const Linker& lk, Result& res) {
+// Fill a dense array for the hash circuit. macs6/av in the public tail (zeros at
+// commit; real for verify). ap is the shared committed key. pub_only -> public
+// inputs only (no SHA/preimage/disclosure witness).
+bool fill(Dense<f_128>& W, bool pub_only, const Circuit<f_128>& C, const f_128& Fs,
+          const std::string& compact, const char* now,
+          const std::vector<std::string>& claims, const std::string& vct,
+          const gf2k* ap, const gf2k macs6[6], gf2k av) {
   size_t nattr = claims.size();
   std::string jwt = compact.substr(0, compact.find('~'));
   size_t d1 = jwt.find('.'), d2 = jwt.find('.', d1 + 1);
@@ -493,8 +502,6 @@ bool run(const Circuit<f_128>& C, const f_128& Fs, const std::string& compact,
     if (chosen[s].empty()) { printf("claim %s not found\n", claims[s].c_str()); return false; }
   }
 
-  auto W = Dense<f_128>(1, C.ninputs);
-  auto pub = Dense<f_128>(1, C.npub_in);
   BitPluckerEncoder<f_128, 4> enc(Fs);
   auto fillpub = [&](DenseFiller<f_128>& f) {
     f.push_back(Fs.one());
@@ -509,11 +516,13 @@ bool run(const Circuit<f_128>& C, const f_128& Fs, const std::string& compact,
       for (size_t i = 0; i < MAXPAT; ++i) f.push_back(i < pat.size() ? (uint8_t)pat[i] : 0, 8, Fs);
       f.push_back((uint8_t)pat.size(), 8, Fs);
     }
-    for (int i = 0; i < 6; ++i) f.push_back(lk.macs[i]);
-    f.push_back(lk.av);
+    for (int i = 0; i < 6; ++i) f.push_back(macs6[i]);
+    f.push_back(av);
   };
-  { DenseFiller<f_128> f(W);
-    fillpub(f);
+  DenseFiller<f_128> f(W);
+  fillpub(f);
+  if (pub_only) return true;
+  {
     push_rev_bits(f, edig, Fs);
     push_rev_bits(f, (const uint8_t*)cx_raw.data(), Fs);
     push_rev_bits(f, (const uint8_t*)cy_raw.data(), Fs);
@@ -550,27 +559,9 @@ bool run(const Circuit<f_128>& C, const f_128& Fs, const std::string& compact,
       f.push_back((uint8_t)(2 + salt_len), 8, Fs);
       f.push_back(sd_idx, LOGM, Fs);
     }
-    for (int i = 0; i < 6; ++i) f.push_back(lk.ap[i]);  // SHARED key
+    for (int i = 0; i < 6; ++i) f.push_back(ap[i]);  // SHARED, av-independent key
   }
-  { DenseFiller<f_128> f(pub); fillpub(f); }
-
-  const RSGf rsf(Fs);
-  SecureRandomEngine rng;
-  ZkProof<f_128> zkp(C, kRate, kNreq);
-  Transcript tp((const uint8_t*)"hash", 4, kVer);
-  ZkProver<f_128, RSGf> prover(C, Fs, rsf);
-  auto t0 = std::chrono::steady_clock::now();
-  prover.commit(zkp, W, tp, rng);
-  bool pok = prover.prove(zkp, W, tp);
-  res.prove_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-t0).count();
-  std::vector<uint8_t> pb; zkp.write(pb, Fs);
-  res.proof_kb = pb.size() / 1024; res.ninputs = C.ninputs;
-  ZkProof<f_128> pr(C, kRate, kNreq); ReadBuffer rb(pb); pr.read(rb, Fs);
-  ZkVerifier<f_128, RSGf> ver(C, rsf, kRate, kNreq, Fs);
-  Transcript tv((const uint8_t*)"hash", 4, kVer); ver.recv_commitment(pr, tv);
-  bool vok = ver.verify(pr, pub, tv);
-  res.ok = pok && vok;
-  return res.ok;
+  return true;
 }
 }  // namespace hashc
 }  // namespace proofs
@@ -592,12 +583,13 @@ int main(int argc, char** argv) {
   std::string compact = rf(fixture);
   const f_128 Fs;
 
-  // ---- parse + build the shared MAC link over e/dpkx/dpky ----
+  // ---- parse fixture; sample the prover's MAC key half a_p (committed) ----
   sigc::Parsed v;
   if (!sigc::parse(compact, jwk, v)) { printf("parse/sig material invalid\n"); return 1; }
   SecureRandomEngine rng;
   Linker lk;
-  lk.init(rng, Fs, v.e_le, v.dx_le, v.dy_le);
+  { MACReference<f_128> mr; mr.sample(lk.ap, 6, &rng); }
+  Fp256Base::Elt common[3] = {v.e_, v.dpkx, v.dpky};  // the MAC-linked values
 
   // ---- compile/cache both circuits ----
   std::string bindir(argv[0]);
@@ -614,18 +606,100 @@ int main(int argc, char** argv) {
       [&] { return hashc::make_hash_circuit(Fs, nattr); }, rh.circ_kb);
   long build_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-tb0).count();
   printf("  circuits ready in %ld ms\n", build_ms);
+  rs.ninputs = Csig->ninputs; rh.ninputs = Chash->ninputs;
 
-  // ---- prove + verify BOTH, linked by the shared macs ----
-  bool sok = sigc::run(*Csig, v, lk, rs);
-  bool hok = hashc::run(*Chash, Fs, compact, now, claims, vct, lk, rh);
+  // mac-wire indices: sig macs follow {1,pkX,pkY,e2}; hash macs are the last 7.
+  const size_t si = 4, hi = Chash->npub_in - 7;
+  const gf2k zero6[6] = {Fs.zero(), Fs.zero(), Fs.zero(), Fs.zero(), Fs.zero(), Fs.zero()};
 
-  size_t bundle = 6 * 16 + 16 + rs.proof_kb * 1024 + rh.proof_kb * 1024;  // macs+av+both proofs
-  printf("  sig  (Fp256)   : ninputs=%zu circuit=%zu KB  prove=%ld ms  proof=%zu KB  %s\n",
-         rs.ninputs, rs.circ_kb, rs.prove_ms, rs.proof_kb, rs.ok ? "ACCEPT" : "REJECT");
-  printf("  hash (GF2^128) : ninputs=%zu circuit=%zu KB  prove=%ld ms  proof=%zu KB  %s\n",
-         rh.ninputs, rh.circ_kb, rh.prove_ms, rh.proof_kb, rh.ok ? "ACCEPT" : "REJECT");
-  printf("  TOTAL          : prove=%ld ms  bundle≈%zu KB  link=MAC(e,dpkx,dpky)+e2  -> %s\n",
-         rs.prove_ms + rh.prove_ms, bundle / 1024,
-         (sok && hok) ? "ACCEPT ✅ (both circuits, linked)" : "REJECT ❌");
+  // RS factories
+  const sigc::f2_p256 p256_2(p256_base);
+  const sigc::Elt2 omega = p256_2.of_string(sigc::kRootX, sigc::kRootY);
+  const sigc::FftExt fft(p256_base, p256_2, omega, 1ull << 31);
+  const sigc::RSFp rsf_s(fft, p256_base);
+  const hashc::RSGf rsf_h(Fs);
+
+  // ======================= PROVER =======================
+  // 1) fill both witnesses with a_p but ZERO macs/av (placeholders).
+  auto W_sig = Dense<Fp256Base>(1, Csig->ninputs);
+  auto W_hash = Dense<f_128>(1, Chash->ninputs);
+  if (!sigc::fill(W_sig, false, v, lk.ap, zero6, Fs.zero())) { printf("sig fill failed\n"); return 1; }
+  if (!hashc::fill(W_hash, false, *Chash, Fs, compact, now, claims, vct, lk.ap, zero6, Fs.zero())) { printf("hash fill failed\n"); return 1; }
+
+  // 2) commit BOTH into one shared transcript (so a_v depends on both commits).
+  Transcript tp((const uint8_t*)"sdjwt-split", 11, kVer);
+  ZkProof<f_128> h_zk(*Chash, kRate, kNreq);
+  ZkProof<Fp256Base> s_zk(*Csig, kRate, kNreq);
+  ZkProver<f_128, hashc::RSGf> hash_p(*Chash, Fs, rsf_h);
+  ZkProver<Fp256Base, sigc::RSFp> sig_p(*Csig, p256_base, rsf_s);
+  auto t0 = std::chrono::steady_clock::now();
+  hash_p.commit(h_zk, W_hash, tp, rng);
+  sig_p.commit(s_zk, W_sig, tp, rng);
+
+  // 3) a_v from the (post-commit) transcript; compute macs; write into W.
+  gf2k av = generate_mac_key(tp, Fs), gmacs[6];
+  uint8_t macs_b[6 * f_128::kBytes];
+  compute_macs(common, gmacs, macs_b, lk.ap, av, Fs);
+  update_macs(W_sig, W_hash, si, hi, gmacs, av);
+
+  // 4) prove both (same transcript, hash then sig).
+  bool ph = hash_p.prove(h_zk, W_hash, tp);
+  bool psg = sig_p.prove(s_zk, W_sig, tp);
+  long prove_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-t0).count();
+
+  // 5) bundle: [6 macs][hash proof][sig proof]
+  std::vector<uint8_t> hb, sb;
+  h_zk.write(hb, Fs);
+  s_zk.write(sb, p256_base);
+  rh.proof_kb = hb.size() / 1024; rs.proof_kb = sb.size() / 1024;
+  std::vector<uint8_t> bundle(macs_b, macs_b + 6 * f_128::kBytes);
+  bundle.insert(bundle.end(), hb.begin(), hb.end());
+  bundle.insert(bundle.end(), sb.begin(), sb.end());
+
+  // Optional negative test: flip one bit of mac_e in the bundle. The committed
+  // witness no longer satisfies the (now wrong) public mac under the transcript
+  // a_v, so BOTH circuits must reject — proving the MAC link is load-bearing.
+  bool tamper = getenv("TAMPER") != nullptr;
+  if (tamper) { bundle[0] ^= 1; printf("  [TAMPER] flipped 1 bit of mac_e in the bundle\n"); }
+
+  // ======================= VERIFIER =======================
+  // parse macs from the bundle; everything else is reconstructed independently.
+  gf2k gmacs2[6];
+  for (int i = 0; i < 6; ++i) gmacs2[i] = Fs.of_bytes_field(bundle.data() + i * f_128::kBytes).value();
+  std::vector<uint8_t> rest(bundle.begin() + 6 * f_128::kBytes, bundle.end());
+  ReadBuffer rb(rest);
+  ZkProof<f_128> pr_h(*Chash, kRate, kNreq);
+  ZkProof<Fp256Base> pr_s(*Csig, kRate, kNreq);
+  if (!pr_h.read(rb, Fs) || !pr_s.read(rb, p256_base)) { printf("proof read failed\n"); return 1; }
+
+  Transcript tv((const uint8_t*)"sdjwt-split", 11, kVer);
+  ZkVerifier<f_128, hashc::RSGf> hash_v(*Chash, rsf_h, kRate, kNreq, Fs);
+  ZkVerifier<Fp256Base, sigc::RSFp> sig_v(*Csig, rsf_s, kRate, kNreq, p256_base);
+  hash_v.recv_commitment(pr_h, tv);
+  sig_v.recv_commitment(pr_s, tv);
+  gf2k av2 = generate_mac_key(tv, Fs);  // verifier re-derives the SAME a_v
+
+  // build public inputs with the bundle's macs + the re-derived a_v.
+  auto pub_sig = Dense<Fp256Base>(1, Csig->npub_in);
+  auto pub_hash = Dense<f_128>(1, Chash->npub_in);
+  sigc::fill(pub_sig, true, v, nullptr, gmacs2, av2);
+  hashc::fill(pub_hash, true, *Chash, Fs, compact, now, claims, vct, nullptr, gmacs2, av2);
+  bool vh = hash_v.verify(pr_h, pub_hash, tv);
+  bool vsg = sig_v.verify(pr_s, pub_sig, tv);
+
+  bool sok = psg && vsg, hok = ph && vh;
+  printf("  sig  (Fp256)   : ninputs=%zu circuit=%zu KB  proof=%zu KB  %s\n",
+         rs.ninputs, rs.circ_kb, rs.proof_kb, sok ? "ACCEPT" : "REJECT");
+  printf("  hash (GF2^128) : ninputs=%zu circuit=%zu KB  proof=%zu KB  %s\n",
+         rh.ninputs, rh.circ_kb, rh.proof_kb, hok ? "ACCEPT" : "REJECT");
+  if (tamper) {
+    bool pass = !sok && !hok;  // tampering MUST break verification
+    printf("  TOTAL [TAMPER] : both rejected? %s  -> MAC link is enforced: %s\n",
+           (!sok && !hok) ? "yes" : "no", pass ? "PASS ✅" : "FAIL ❌");
+    return pass ? 0 : 1;
+  }
+  printf("  TOTAL          : prove(both)=%ld ms  bundle=%zu KB  link=MAC(e,dpkx,dpky), a_v from transcript -> %s\n",
+         prove_ms, bundle.size() / 1024,
+         (sok && hok) ? "ACCEPT ✅ (two circuits, soundly linked)" : "REJECT ❌");
   return (sok && hok) ? 0 : 1;
 }
