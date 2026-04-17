@@ -113,6 +113,29 @@ native/sdjwt_full fixtures/sdjwt.txt fixtures/issuer-jwk.json 1700000000 \
 > **sd_hash 바인딩**(정석)으로 `SHA(제시 묶음)==KB의 sd_hash` 를 회로가 검증해
 > "공개한 disclosure ⊆ 홀더가 서명한 제시 묶음"을 강제합니다(disclosure 짜깁기 방지).
 
+#### ⚡ 2회로 + MAC 분리 (mdoc과 동일 아키텍처)
+
+위 `sdjwt_full`은 **단일 Fp256 회로**(소수체)라 SHA가 비쌉니다. mdoc처럼 작업을
+**두 회로로 분리**하면 훨씬 빠릅니다 — SHA/해시는 이진체 **GF(2¹²⁸)**가 Fp256보다
+~5배 저렴하기 때문입니다(`native/sha_bench.cc`로 직접 측정).
+
+- **서명 회로(Fp256)** `native/sdjwt_sig.cc`: 발급자 ES256 + 홀더 KB ES256.
+- **해시 회로(GF2¹²⁸)** `native/sdjwt_hash.cc`: SHA + exp + vct + cnf + sd_hash +
+  N×(`_sd` 멤버십·구조·consent) 전체.
+- **결속** `native/sdjwt_split.cc`: 공통값 e/dpkx/dpky를 **MAC로 묶음**. `a_v`(MAC 키
+  절반)를 **commit 이후 트랜스크립트에서 유도**하므로 증명자가 두 회로에 다른 값을 못
+  넣습니다(건전). e2는 양 회로 공개입력.
+
+```bash
+native/sha_bench                      # Fp256 vs GF(2^128) SHA 회로크기·시간 벤치
+native/sdjwt_split                    # ⭐ 2회로 present+verify (3속성), 둘 다 ACCEPT
+TAMPER=1 native/sdjwt_split           # mac 1비트 변조 → 양 회로 REJECT (링크 강제 증명)
+```
+
+측정(3속성): **prove(both) ~0.95s, 번들 353KB** (sig 194KB + hash 158KB). 단일
+`sdjwt_full`(~6.6s, end-to-end)과 비교해 **약 4–6배 단축**. 회로 캐시도 145MB→3MB(단일)
+대비 164KB+948KB(분리)로 작습니다.
+
 단계별 실행도 가능합니다(상태는 `artifacts/`에 저장):
 
 ```bash

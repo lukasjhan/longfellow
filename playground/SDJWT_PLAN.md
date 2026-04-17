@@ -92,11 +92,29 @@ substring의 prefix 모호성(`18`⊂`180`)이 원천 소거된다. (레퍼런�
   - **다속성 N 가변**: NATTR을 런타임 파라미터로(벡터). 2·3·4속성 모두 동작. claims는 argv로 지정.
   - **회로 캐싱**: CircuitWriter/Reader로 컴파일된 회로를 N별 zstd 압축 캐시
     (`circuits-cache/sdjwt-<N>attr.bin`, 145MB→~3MB). 재실행 시 **컴파일 ~23s → 로드 ~0.4s**.
-- **M6e (남음/선택)**: 2체 분리(GF2¹²⁸ 해시) 최적화, W3C VC, 공개 API화.
+- **M7 ✅** (2체 분리 + MAC, mdoc 아키텍처): monolithic 단일 Fp256 회로를 mdoc처럼
+  **두 회로로 분리**해 성능 확보. SHA/CBOR-유사 해시 작업은 이진체 GF(2¹²⁸)가 소수체
+  Fp256보다 ~5배 저렴(`native/sha_bench.cc`로 측정: 18블록 1181KB→236KB, prove 1412→283ms).
+  - **M7-1 ✅** 서명 회로(Fp256): `MdocSignature` 재사용 — 발급자 ES256 + 홀더 KB ES256 +
+    e/dpkx/dpky의 MAC. `native/sdjwt_sig.cc` (ninputs 3739, prove ~200ms).
+  - **M7-2 ✅** 해시 회로(GF2¹²⁸): SHA + exp + vct + cnf + sd_hash 바인딩 +
+    N×(`_sd` 멤버십 + 구조 + consent) 전체를 GF(2¹²⁸)로 포팅. `native/sdjwt_hash.cc`
+    (3속성 ninputs 86723, prove ~720ms). nattr별 zstd 캐시(99MB→948KB).
+  - **M7-3 ✅** 오케스트레이션(`native/sdjwt_split.cc`): 두 회로를 **MAC로 건전하게 결속**.
+    공유 트랜스크립트에 양쪽 commit → `a_v`를 commit 이후 트랜스크립트에서 유도 →
+    공통값(e/dpkx/dpky) macs 계산 → 커밋된 공개입력 슬롯에 기입 → 양쪽 prove/verify.
+    witness(a_p)가 a_v 독립이라 commit 후 a_v 공개가 안전, 증명자가 a_v를 못 골라
+    두 회로에 다른 e를 못 넣음(Schwartz-Zippel). e2는 양 회로 공개입력.
+    번들 `[6 macs][hash proof][sig proof]`. **변조 테스트**(`TAMPER=1`): mac 1비트 변조 시
+    양 회로 모두 REJECT 확인. 3속성 **prove(both) ~0.95s, 번들 353KB, ACCEPT**.
+  - **비교**: monolithic(`sdjwt_full`) end-to-end ~6.6s vs split ~1.7s(≈4배), prove만 ~6배.
+    회로 캐시 145MB→3MB(mono) vs 164KB+948KB(split).
+- **M8 (남음/선택)**: W3C VC, 공개 API/Node 바인딩화, 단일 번들 직렬화/역직렬화 정리.
 
-> 현재 상태: **mdoc 패리티 이상 달성** — SD-JWT-VC 선택공개 ZK가 실제 토큰에서 end-to-end
-> 동작. 모든 값 타입(불리언/숫자/날짜) + 유효기간(exp) + Key Binding + **sd_hash 바인딩** +
-> 다속성 동시공개를, 파싱 없이 `_sd` 멤버십으로.
+> 현재 상태: **mdoc 패리티 이상 + mdoc과 동일한 2체+MAC 아키텍처까지 달성** — SD-JWT-VC
+> 선택공개 ZK가 실제 토큰에서 end-to-end 동작. 모든 값 타입(불리언/숫자/날짜) + 유효기간(exp)
+> + Key Binding + **sd_hash 바인딩** + 다속성 동시공개를 파싱 없이 `_sd` 멤버십으로, 그리고
+> 이를 **Fp256 서명 회로 + GF(2¹²⁸) 해시 회로로 분리해 MAC로 건전하게 결속**(prove ~4–6배 단축).
 
 ## 리스크 / 공수
 
