@@ -127,8 +127,9 @@ native/sdjwt_full fixtures/sdjwt.txt fixtures/issuer-jwk.json 1700000000 \
   넣습니다(건전). e2는 양 회로 공개입력.
 
 ```bash
+pnpm run demo:sdjwt-split             # ⭐ Node 데모: issue → 2회로 present+verify → 만료/변조 거부
 native/sha_bench                      # Fp256 vs GF(2^128) SHA 회로크기·시간 벤치
-native/sdjwt_split                    # ⭐ 2회로 present+verify (3속성), 둘 다 ACCEPT
+native/sdjwt_split                    # 2회로 present+verify (3속성), 둘 다 ACCEPT
 TAMPER=1 native/sdjwt_split           # mac 1비트 변조 → 양 회로 REJECT (링크 강제 증명)
 ```
 
