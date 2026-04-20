@@ -269,17 +269,20 @@ using MACW = MAC::Witness;
 using MACTag = MAC::v128;
 using RSGf = LCH14ReedSolomonFactory<f_128>;
 
-constexpr size_t kMaxSHA = 13;
+// Circuit capacities (compile-time fixed, like mdoc's kMaxSHABlocks etc).
+// Set GENEROUSLY so realistic SD-JWT-VC credentials fit; the host checks every
+// token against these and errors clearly if exceeded (see check_capacity).
+constexpr size_t kMaxSHA = 32;            // issuer header.payload: up to 2048 B
 constexpr size_t PRE = 64 * kMaxSHA;
-constexpr size_t DECP = 64 * (kMaxSHA - 2);
-constexpr size_t LOGM = 11;
-constexpr size_t MAXVCT = 80;
-constexpr size_t MAXB = 2;
+constexpr size_t DECP = 64 * (kMaxSHA - 2);  // decoded payload buffer: 1920 B
+constexpr size_t LOGM = 12;               // routing index width: up to 4096
+constexpr size_t MAXVCT = 128;            // `"vct":"<type>"` pattern
+constexpr size_t MAXB = 4;                // SHA blocks per disclosure: up to 256 B
 constexpr size_t MAXDD = (64 * MAXB * 6) / 8;
-constexpr size_t MAXPAT = 96;
-constexpr size_t KBB = 4;
+constexpr size_t MAXPAT = 160;            // disclosure suffix `","claim",value]`
+constexpr size_t KBB = 6;                 // KB header.payload: up to 384 B
 constexpr size_t DECKB = 64 * KBB;
-constexpr size_t PB = 18;
+constexpr size_t PB = 40;                 // presented bundle: up to 2560 B
 constexpr size_t PRES = 64 * PB;
 
 static v8 vb(const LC& L, uint8_t c) { return L.template vbit<8>(c); }
@@ -455,6 +458,61 @@ static void fill_sha(DenseFiller<f_128>& f, BitPluckerEncoder<f_128, 4>& enc, co
   for (size_t k = 0; k < 8; ++k) f.push_back(enc.mkpacked_v32(b.h1[k]));
 }
 
+// Validate that this credential fits the (fixed) circuit capacities. Returns a
+// clear, specific error instead of letting host buffers overflow. (mdoc does the
+// same with codes like MDOC_PROVER_TAGGED_MSO_TOO_BIG.)
+bool check_capacity(const std::string& compact, const std::vector<std::string>& claims,
+                    const std::string& vct, std::string& err) {
+  auto blocks = [](size_t n) { return (n + 9 + 63) / 64; };  // SHA-256 padded blocks
+  char buf[256];
+  std::string jwt = compact.substr(0, compact.find('~'));
+  size_t d1 = jwt.find('.'), d2 = jwt.find('.', d1 + 1);
+  if (d1 == std::string::npos || d2 == std::string::npos) { err = "malformed issuer JWT"; return false; }
+  std::string hp = jwt.substr(0, d2);
+  std::string payload = b64d(jwt.substr(d1 + 1, d2 - d1 - 1));
+  if (blocks(hp.size()) > kMaxSHA) {
+    snprintf(buf, sizeof buf, "issuer header.payload %zuB needs %zu SHA blocks > kMaxSHA=%zu (%zuB)",
+             hp.size(), blocks(hp.size()), kMaxSHA, kMaxSHA * 64); err = buf; return false; }
+  if (payload.size() > DECP) {
+    snprintf(buf, sizeof buf, "decoded payload %zuB > DECP=%zuB", payload.size(), DECP); err = buf; return false; }
+
+  std::string kb = compact.substr(compact.rfind('~') + 1);
+  size_t kd1 = kb.find('.'), kd2 = kb.find('.', kd1 + 1);
+  if (kd2 == std::string::npos) { err = "malformed KB-JWT"; return false; }
+  std::string kbhp = kb.substr(0, kd2);
+  if (blocks(kbhp.size()) > KBB) {
+    snprintf(buf, sizeof buf, "KB header.payload %zuB needs %zu SHA blocks > KBB=%zu (%zuB)",
+             kbhp.size(), blocks(kbhp.size()), KBB, KBB * 64); err = buf; return false; }
+
+  std::string pres = compact.substr(0, compact.rfind('~') + 1);
+  if (blocks(pres.size()) > PB) {
+    snprintf(buf, sizeof buf, "presented bundle %zuB needs %zu SHA blocks > PB=%zu (%zuB)",
+             pres.size(), blocks(pres.size()), PB, PB * 64); err = buf; return false; }
+  if (pres.size() >= (size_t(1) << LOGM)) {
+    snprintf(buf, sizeof buf, "presented %zuB >= 2^LOGM=%zu (raise LOGM)", pres.size(), size_t(1) << LOGM); err = buf; return false; }
+
+  std::string vp = "\"vct\":\"" + vct + "\"";
+  if (vp.size() > MAXVCT) { snprintf(buf, sizeof buf, "vct pattern %zuB > MAXVCT=%zu", vp.size(), MAXVCT); err = buf; return false; }
+
+  std::vector<std::string> discs;
+  { size_t p = compact.find('~') + 1, q;
+    while ((q = compact.find('~', p)) != std::string::npos) { if (q > p) discs.push_back(compact.substr(p, q - p)); p = q + 1; } }
+  for (const auto& cl : claims) {
+    std::string key = "\"" + cl + "\"", chosen;
+    for (auto& d : discs) if (b64d(d).find(key) != std::string::npos) chosen = d;
+    if (chosen.empty()) { err = "requested claim not found: " + cl; return false; }
+    if (blocks(chosen.size()) > MAXB) {
+      snprintf(buf, sizeof buf, "disclosure '%s' %zuB needs %zu SHA blocks > MAXB=%zu (%zuB)",
+               cl.c_str(), chosen.size(), blocks(chosen.size()), MAXB, MAXB * 64); err = buf; return false; }
+    std::string dj = b64d(chosen);
+    size_t salt_len = dj.find("\",\"") - 2;
+    std::string pat = dj.substr(2 + salt_len);
+    if (pat.size() > MAXPAT) {
+      snprintf(buf, sizeof buf, "claim '%s' pattern %zuB > MAXPAT=%zu", cl.c_str(), pat.size(), MAXPAT); err = buf; return false; }
+  }
+  return true;
+}
+
 // Fill a dense array for the hash circuit. macs6/av in the public tail (zeros at
 // commit; real for verify). ap is the shared committed key. pub_only -> public
 // inputs only (no SHA/preimage/disclosure witness).
@@ -583,6 +641,13 @@ int main(int argc, char** argv) {
   std::string compact = rf(fixture);
   const f_128 Fs;
 
+  // ---- capacity check: fail clearly if the token exceeds the fixed circuit ----
+  std::string cap_err;
+  if (!hashc::check_capacity(compact, claims, vct, cap_err)) {
+    printf("ERROR (cannot prove): %s\n", cap_err.c_str());
+    return 2;
+  }
+
   // ---- parse fixture; sample the prover's MAC key half a_p (committed) ----
   sigc::Parsed v;
   if (!sigc::parse(compact, jwk, v)) { printf("parse/sig material invalid\n"); return 1; }
@@ -602,7 +667,11 @@ int main(int argc, char** argv) {
   auto tb0 = std::chrono::steady_clock::now();
   auto Csig = get_circuit<Fp256Base>(p256_base, P256_ID, cdir + "/sdjwt-sig.bin",
       [] { return sigc::make_sig_circuit(); }, rs.circ_kb);
-  auto Chash = get_circuit<f_128>(Fs, GF2_128_ID, cdir + "/sdjwt-hash-" + std::to_string(nattr) + "attr.bin",
+  // cache key includes the geometry so changing capacities auto-invalidates it.
+  char geo[64];
+  snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu", nattr,
+           hashc::kMaxSHA, hashc::KBB, hashc::PB, hashc::MAXB);
+  auto Chash = get_circuit<f_128>(Fs, GF2_128_ID, cdir + "/sdjwt-hash-" + geo + ".bin",
       [&] { return hashc::make_hash_circuit(Fs, nattr); }, rh.circ_kb);
   long build_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-tb0).count();
   printf("  circuits ready in %ld ms\n", build_ms);
