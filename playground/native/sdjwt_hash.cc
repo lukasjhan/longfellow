@@ -68,17 +68,19 @@ using MACW = MAC::Witness;
 using MACTag = MAC::v128;  // native gf2k EltW
 using RSGf = LCH14ReedSolomonFactory<f_128>;
 
-constexpr size_t kMaxSHA = 13;          // SHA blocks for header.payload
+// Generous, fixed circuit capacities (matched to sdjwt_split.cc); the host
+// checks each token against them and errors clearly if exceeded.
+constexpr size_t kMaxSHA = 32;          // issuer header.payload: up to 2048 B
 constexpr size_t PRE = 64 * kMaxSHA;
-constexpr size_t DECP = 64 * (kMaxSHA - 2);  // decoded-payload buffer
-constexpr size_t LOGM = 11;
-constexpr size_t MAXVCT = 80;           // max `"vct":"<type>"` pattern
-constexpr size_t MAXB = 2;              // SHA blocks per disclosure
+constexpr size_t DECP = 64 * (kMaxSHA - 2);  // decoded-payload buffer: 1920 B
+constexpr size_t LOGM = 12;             // routing index width: up to 4096
+constexpr size_t MAXVCT = 128;          // max `"vct":"<type>"` pattern
+constexpr size_t MAXB = 4;              // SHA blocks per disclosure: up to 256 B
 constexpr size_t MAXDD = (64 * MAXB * 6) / 8;
-constexpr size_t MAXPAT = 96;          // max disclosure suffix pattern
-constexpr size_t KBB = 4;              // SHA blocks for KB header.payload (~212B)
+constexpr size_t MAXPAT = 160;         // max disclosure suffix pattern
+constexpr size_t KBB = 6;              // SHA blocks for KB header.payload: 384 B
 constexpr size_t DECKB = 64 * KBB;     // KB payload decode buffer
-constexpr size_t PB = 18;              // SHA blocks for the presented SD-JWT
+constexpr size_t PB = 40;              // presented bundle: up to 2560 B
 constexpr size_t PRES = 64 * PB;       // presented bytes
 constexpr size_t kRate = 7, kNreq = 132, kVer = 7;
 
@@ -340,6 +342,50 @@ struct Concrete {
   gf2k ap[6], av, macs[6];
 };
 
+// Validate the token fits the fixed circuit capacities; clear error if not.
+bool check_capacity(const std::string& compact, const std::vector<std::string>& claims,
+                    const std::string& vct, std::string& err) {
+  auto blocks = [](size_t n) { return (n + 9 + 63) / 64; };
+  char buf[256];
+  std::string jwt = compact.substr(0, compact.find('~'));
+  size_t d1 = jwt.find('.'), d2 = jwt.find('.', d1 + 1);
+  if (d1 == std::string::npos || d2 == std::string::npos) { err = "malformed issuer JWT"; return false; }
+  std::string hp = jwt.substr(0, d2);
+  std::string payload = b64d(jwt.substr(d1 + 1, d2 - d1 - 1));
+  if (blocks(hp.size()) > kMaxSHA) {
+    snprintf(buf, sizeof buf, "issuer header.payload %zuB needs %zu SHA blocks > kMaxSHA=%zu (%zuB)",
+             hp.size(), blocks(hp.size()), kMaxSHA, kMaxSHA * 64); err = buf; return false; }
+  if (payload.size() > DECP) { snprintf(buf, sizeof buf, "decoded payload %zuB > DECP=%zuB", payload.size(), DECP); err = buf; return false; }
+  std::string kb = compact.substr(compact.rfind('~') + 1);
+  size_t kd2 = kb.find('.', kb.find('.') + 1);
+  if (kd2 == std::string::npos) { err = "malformed KB-JWT"; return false; }
+  if (blocks(kb.substr(0, kd2).size()) > KBB) {
+    snprintf(buf, sizeof buf, "KB header.payload %zuB needs %zu SHA blocks > KBB=%zu (%zuB)",
+             kb.substr(0, kd2).size(), blocks(kb.substr(0, kd2).size()), KBB, KBB * 64); err = buf; return false; }
+  std::string pres = compact.substr(0, compact.rfind('~') + 1);
+  if (blocks(pres.size()) > PB) {
+    snprintf(buf, sizeof buf, "presented bundle %zuB needs %zu SHA blocks > PB=%zu (%zuB)",
+             pres.size(), blocks(pres.size()), PB, PB * 64); err = buf; return false; }
+  if (pres.size() >= (size_t(1) << LOGM)) { snprintf(buf, sizeof buf, "presented %zuB >= 2^LOGM=%zu", pres.size(), size_t(1) << LOGM); err = buf; return false; }
+  std::string vp = "\"vct\":\"" + vct + "\"";
+  if (vp.size() > MAXVCT) { snprintf(buf, sizeof buf, "vct pattern %zuB > MAXVCT=%zu", vp.size(), MAXVCT); err = buf; return false; }
+  std::vector<std::string> discs;
+  { size_t p = compact.find('~') + 1, q;
+    while ((q = compact.find('~', p)) != std::string::npos) { if (q > p) discs.push_back(compact.substr(p, q - p)); p = q + 1; } }
+  for (const auto& cl : claims) {
+    std::string key = "\"" + cl + "\"", chosen;
+    for (auto& d : discs) if (b64d(d).find(key) != std::string::npos) chosen = d;
+    if (chosen.empty()) { err = "requested claim not found: " + cl; return false; }
+    if (blocks(chosen.size()) > MAXB) {
+      snprintf(buf, sizeof buf, "disclosure '%s' %zuB needs %zu SHA blocks > MAXB=%zu (%zuB)",
+               cl.c_str(), chosen.size(), blocks(chosen.size()), MAXB, MAXB * 64); err = buf; return false; }
+    std::string dj = b64d(chosen);
+    std::string pat = dj.substr(2 + (dj.find("\",\"") - 2));
+    if (pat.size() > MAXPAT) { snprintf(buf, sizeof buf, "claim '%s' pattern %zuB > MAXPAT=%zu", cl.c_str(), pat.size(), MAXPAT); err = buf; return false; }
+  }
+  return true;
+}
+
 }  // namespace
 }  // namespace proofs
 
@@ -361,6 +407,12 @@ int main(int argc, char** argv) {
   }
   c.vct = argc > 4 ? argv[4] : "https://credentials.example/pid";
   size_t nattr = c.claims.size();
+
+  std::string cap_err;
+  if (!check_capacity(c.compact, c.claims, c.vct, cap_err)) {
+    printf("ERROR (cannot prove): %s\n", cap_err.c_str());
+    return 2;
+  }
 
   // ---- gather host data ----
   std::string jwt = c.compact.substr(0, c.compact.find('~'));
@@ -431,7 +483,8 @@ int main(int argc, char** argv) {
   size_t sl = bindir.rfind('/');
   std::string cacheDir = (sl == std::string::npos ? std::string(".") : bindir.substr(0, sl)) + "/../circuits-cache";
   mkdir(cacheDir.c_str(), 0755);
-  std::string cacheFile = cacheDir + "/sdjwt-hash-" + std::to_string(nattr) + "attr.bin";
+  char geo[64]; snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu", nattr, kMaxSHA, KBB, PB, MAXB);
+  std::string cacheFile = cacheDir + "/sdjwt-hash-" + geo + ".bin";
 
   std::unique_ptr<Circuit<f_128>> C;
   std::ifstream cf(cacheFile, std::ios::binary);
