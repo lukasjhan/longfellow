@@ -1,0 +1,138 @@
+{
+  "payload": {
+    "iss": "https://issuer.example/eudi",
+    "vct": "https://credentials.example/pid",
+    "iat": 1779551926,
+    "exp": 1782143926,
+    "cnf": {
+      "jwk": {
+        "kty": "EC",
+        "x": "3_4AN88BaB3KUXUkT8k322fvkruQ98ahZFUMIFlrJmA",
+        "y": "rbkGamLx6uDd_lDWZBu-toJK9D_LvG0-kMR-TSzP-cg",
+        "crv": "P-256"
+      }
+    },
+    "_sd_alg": "sha-256",
+    "_sd": [
+      "6Mr4J4ncRehrU6_67-fTr8pkq2RqCB9dIjD2izBAORw",
+      "DsxrojFs3vDJ3llA3On1NWYPqZq9p5hZHGPPwvhh2G4",
+      "PqdkTZt6DRYoNjpKGksEFgDXgYKOU2rAKEtDsd8GQBg",
+      "WniXdHzXNyvlobAqFTNN9qcfHQLFocVXKxpDFax4ZfE",
+      "ZxcRr_K05WxF7UjksJMFkEMb1CigSHw8bk5cbazpsw0",
+      "_LKBDsBLwVvE-DxDieWSB6ZvR9TiWWue0uHPzt0cbYY",
+      "f5Hz18xBSJJpDmsaE_IlNUzHtsnG3TZB7y8rDOSjtbw",
+      "hGEX0P-g7oWklGfpieF8fJhAyWdW18kTB_ehXszSttM",
+      "kfIKW2G-Mq_F7AZt_dlIb_Om3X6VWyPMOkwIxtVRMQ0",
+      "lXw_Lq0VWI0Rhas_-R5e-dBdL6wT5hXoF_RaaSpxmlI",
+      "moZT1eR3qjNk9J_936WrwTicebzpI02nLuVNiHPtftA",
+      "uCVQu9mA2H_Jm1YsaqVa8pV-c4aeScZtK5sZppA1Pmo",
+      "ziv-9tnSJi7t4whoJVCasAf89FIMt-YB-HIh-yH06kA"
+    ]
+  },
+  "disclosures": [
+    {
+      "name": "given_name",
+      "value": "Erika",
+      "salt": "2qJ_hMbWqruIrHNExfWYtA",
+      "json": "[\"2qJ_hMbWqruIrHNExfWYtA\",\"given_name\",\"Erika\"]",
+      "disclosure": "WyIycUpfaE1iV3FydUlySE5FeGZXWXRBIiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
+      "digest": "PqdkTZt6DRYoNjpKGksEFgDXgYKOU2rAKEtDsd8GQBg"
+    },
+    {
+      "name": "family_name",
+      "value": "Mustermann",
+      "salt": "ITZ6s5I8iORoo5JLFKH8Lg",
+      "json": "[\"ITZ6s5I8iORoo5JLFKH8Lg\",\"family_name\",\"Mustermann\"]",
+      "disclosure": "WyJJVFo2czVJOGlPUm9vNUpMRktIOExnIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
+      "digest": "uCVQu9mA2H_Jm1YsaqVa8pV-c4aeScZtK5sZppA1Pmo"
+    },
+    {
+      "name": "birthdate",
+      "value": "1963-08-12",
+      "salt": "WOLMyonGoYhvE8PCUvIarQ",
+      "json": "[\"WOLMyonGoYhvE8PCUvIarQ\",\"birthdate\",\"1963-08-12\"]",
+      "disclosure": "WyJXT0xNeW9uR29ZaHZFOFBDVXZJYXJRIiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
+      "digest": "DsxrojFs3vDJ3llA3On1NWYPqZq9p5hZHGPPwvhh2G4"
+    },
+    {
+      "name": "age_over_18",
+      "value": true,
+      "salt": "ePsf1VWP9CD-I8_tRRXj7w",
+      "json": "[\"ePsf1VWP9CD-I8_tRRXj7w\",\"age_over_18\",true]",
+      "disclosure": "WyJlUHNmMVZXUDlDRC1JOF90UlJYajd3IiwiYWdlX292ZXJfMTgiLHRydWVd",
+      "digest": "WniXdHzXNyvlobAqFTNN9qcfHQLFocVXKxpDFax4ZfE"
+    },
+    {
+      "name": "height",
+      "value": 175,
+      "salt": "zZZp7E-TcSE2UVQCbGKL8A",
+      "json": "[\"zZZp7E-TcSE2UVQCbGKL8A\",\"height\",175]",
+      "disclosure": "WyJ6WlpwN0UtVGNTRTJVVlFDYkdLTDhBIiwiaGVpZ2h0IiwxNzVd",
+      "digest": "moZT1eR3qjNk9J_936WrwTicebzpI02nLuVNiHPtftA"
+    },
+    {
+      "name": "age_over_21",
+      "value": true,
+      "salt": "ASGGNHCKS4UcHz6hOqbStw",
+      "json": "[\"ASGGNHCKS4UcHz6hOqbStw\",\"age_over_21\",true]",
+      "disclosure": "WyJBU0dHTkhDS1M0VWNIejZoT3FiU3R3IiwiYWdlX292ZXJfMjEiLHRydWVd",
+      "digest": "6Mr4J4ncRehrU6_67-fTr8pkq2RqCB9dIjD2izBAORw"
+    },
+    {
+      "name": "age_in_years",
+      "value": 61,
+      "salt": "BOc6e4rYmiTgGH82Plj4bQ",
+      "json": "[\"BOc6e4rYmiTgGH82Plj4bQ\",\"age_in_years\",61]",
+      "disclosure": "WyJCT2M2ZTRyWW1pVGdHSDgyUGxqNGJRIiwiYWdlX2luX3llYXJzIiw2MV0",
+      "digest": "f5Hz18xBSJJpDmsaE_IlNUzHtsnG3TZB7y8rDOSjtbw"
+    },
+    {
+      "name": "nationality",
+      "value": "DE",
+      "salt": "FsGtXYTlgdXktiN_2JybtA",
+      "json": "[\"FsGtXYTlgdXktiN_2JybtA\",\"nationality\",\"DE\"]",
+      "disclosure": "WyJGc0d0WFlUbGdkWGt0aU5fMkp5YnRBIiwibmF0aW9uYWxpdHkiLCJERSJd",
+      "digest": "lXw_Lq0VWI0Rhas_-R5e-dBdL6wT5hXoF_RaaSpxmlI"
+    },
+    {
+      "name": "place_of_birth",
+      "value": "Berlin",
+      "salt": "K2soVDST6gchwLS5V_t6Ng",
+      "json": "[\"K2soVDST6gchwLS5V_t6Ng\",\"place_of_birth\",\"Berlin\"]",
+      "disclosure": "WyJLMnNvVkRTVDZnY2h3TFM1Vl90Nk5nIiwicGxhY2Vfb2ZfYmlydGgiLCJCZXJsaW4iXQ",
+      "digest": "kfIKW2G-Mq_F7AZt_dlIb_Om3X6VWyPMOkwIxtVRMQ0"
+    },
+    {
+      "name": "resident_city",
+      "value": "Köln",
+      "salt": "np0Lyeu8czeJ_v5e4XsGYQ",
+      "json": "[\"np0Lyeu8czeJ_v5e4XsGYQ\",\"resident_city\",\"Köln\"]",
+      "disclosure": "WyJucDBMeWV1OGN6ZUpfdjVlNFhzR1lRIiwicmVzaWRlbnRfY2l0eSIsIkvDtmxuIl0",
+      "digest": "hGEX0P-g7oWklGfpieF8fJhAyWdW18kTB_ehXszSttM"
+    },
+    {
+      "name": "resident_postal_code",
+      "value": "51147",
+      "salt": "bkWFgYGNDaioplJvgWurFA",
+      "json": "[\"bkWFgYGNDaioplJvgWurFA\",\"resident_postal_code\",\"51147\"]",
+      "disclosure": "WyJia1dGZ1lHTkRhaW9wbEp2Z1d1ckZBIiwicmVzaWRlbnRfcG9zdGFsX2NvZGUiLCI1MTE0NyJd",
+      "digest": "_LKBDsBLwVvE-DxDieWSB6ZvR9TiWWue0uHPzt0cbYY"
+    },
+    {
+      "name": "resident_street",
+      "value": "Heidestraße 17",
+      "salt": "BV5yF6uA0CBIDVVy02HWVw",
+      "json": "[\"BV5yF6uA0CBIDVVy02HWVw\",\"resident_street\",\"Heidestraße 17\"]",
+      "disclosure": "WyJCVjV5RjZ1QTBDQklEVlZ5MDJIV1Z3IiwicmVzaWRlbnRfc3RyZWV0IiwiSGVpZGVzdHJhw59lIDE3Il0",
+      "digest": "ziv-9tnSJi7t4whoJVCasAf89FIMt-YB-HIh-yH06kA"
+    },
+    {
+      "name": "email",
+      "value": "erika@example.de",
+      "salt": "tp3-tTGEmcuRmiMt8-8yTw",
+      "json": "[\"tp3-tTGEmcuRmiMt8-8yTw\",\"email\",\"erika@example.de\"]",
+      "disclosure": "WyJ0cDMtdFRHRW1jdVJtaU10OC04eVR3IiwiZW1haWwiLCJlcmlrYUBleGFtcGxlLmRlIl0",
+      "digest": "ZxcRr_K05WxF7UjksJMFkEMb1CigSHw8bk5cbazpsw0"
+    }
+  ]
+}

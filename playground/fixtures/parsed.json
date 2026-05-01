@@ -2,65 +2,65 @@
   "payload": {
     "iss": "https://issuer.example/eudi",
     "vct": "https://credentials.example/pid",
-    "iat": 1779550614,
-    "exp": 1782142614,
+    "iat": 1779551918,
+    "exp": 1782143918,
     "cnf": {
       "jwk": {
         "kty": "EC",
-        "x": "4VIS8eyUUyShlVAEA0do-e0akaQIINEkV5R95v2bkOo",
-        "y": "_Yw8rl8sxJ9LWD0fJO85LEeK-0WLiIlxrEbhyhThz6E",
+        "x": "jM4ljU5ZG1DpC7jjUrTaWtXHM_e4NRPZQbu729wVYmA",
+        "y": "QdutkmKCjyqQPKph2LyzaoBsRUm8bBEdPPKRIcC7jOY",
         "crv": "P-256"
       }
     },
     "_sd_alg": "sha-256",
     "_sd": [
-      "5QtnxYce8pKdMH2eCncRYZc1EzVnnwgwKv-7G3acFZc",
-      "k5DjyiBHBP_rUju6mY0Df0Zx_SXnZiFwMkR450HTAKo",
-      "lFYGbmy8iO2tm2q5FEvDuR9-mRPn8Wcb0LAoNuZAwiI",
-      "rrVptWhJCPmCcuksF4tvXz1muj-6jDw-dCvei4H1CzI",
-      "wZAWtOHMggct-yYo9ymZvgCw1uD6tN5i239KVHE4sMs"
+      "9WnrBUjFUP5uDGm0k0f0iSgZLpLiG239XhwFSDSSa6Y",
+      "FU3HiS04NvFgHCzmRqX5DQ0vrSkpUCDlgz0yHfl61D0",
+      "HcI--sZKNaCXPeyrnLcX80NHPIk_FHTDlSHf6jxZfJU",
+      "Rh5XML-VZw89M--r-z1J_IjlpKRkGT9A0w5naWzp1FM",
+      "hdc2PpgkzgfzZI2f2qVhGhYO-ZJvt5cZ6mU3i9ab4XI"
     ]
   },
   "disclosures": [
     {
       "name": "given_name",
       "value": "Erika",
-      "salt": "6h20Jtv3-_qU0cQW0tFScw",
-      "json": "[\"6h20Jtv3-_qU0cQW0tFScw\",\"given_name\",\"Erika\"]",
-      "disclosure": "WyI2aDIwSnR2My1fcVUwY1FXMHRGU2N3IiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
-      "digest": "lFYGbmy8iO2tm2q5FEvDuR9-mRPn8Wcb0LAoNuZAwiI"
+      "salt": "PSTxpBUV_oD1vA6dI6tGPw",
+      "json": "[\"PSTxpBUV_oD1vA6dI6tGPw\",\"given_name\",\"Erika\"]",
+      "disclosure": "WyJQU1R4cEJVVl9vRDF2QTZkSTZ0R1B3IiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
+      "digest": "HcI--sZKNaCXPeyrnLcX80NHPIk_FHTDlSHf6jxZfJU"
     },
     {
       "name": "family_name",
       "value": "Mustermann",
-      "salt": "1I6fGqg2cCfuVZst0cocIg",
-      "json": "[\"1I6fGqg2cCfuVZst0cocIg\",\"family_name\",\"Mustermann\"]",
-      "disclosure": "WyIxSTZmR3FnMmNDZnVWWnN0MGNvY0lnIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
-      "digest": "k5DjyiBHBP_rUju6mY0Df0Zx_SXnZiFwMkR450HTAKo"
+      "salt": "2lcxICEqfagQNWC1um3UQg",
+      "json": "[\"2lcxICEqfagQNWC1um3UQg\",\"family_name\",\"Mustermann\"]",
+      "disclosure": "WyIybGN4SUNFcWZhZ1FOV0MxdW0zVVFnIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
+      "digest": "FU3HiS04NvFgHCzmRqX5DQ0vrSkpUCDlgz0yHfl61D0"
     },
     {
       "name": "birthdate",
       "value": "1963-08-12",
-      "salt": "l--JVB1Xn947s7nnQAJRVw",
-      "json": "[\"l--JVB1Xn947s7nnQAJRVw\",\"birthdate\",\"1963-08-12\"]",
-      "disclosure": "WyJsLS1KVkIxWG45NDdzN25uUUFKUlZ3IiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
-      "digest": "wZAWtOHMggct-yYo9ymZvgCw1uD6tN5i239KVHE4sMs"
+      "salt": "vtoV1IsYrpwMsNUjrIrUDw",
+      "json": "[\"vtoV1IsYrpwMsNUjrIrUDw\",\"birthdate\",\"1963-08-12\"]",
+      "disclosure": "WyJ2dG9WMUlzWXJwd01zTlVqcklyVUR3IiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
+      "digest": "hdc2PpgkzgfzZI2f2qVhGhYO-ZJvt5cZ6mU3i9ab4XI"
     },
     {
       "name": "age_over_18",
       "value": true,
-      "salt": "UswCxTlnVIPbEbScPKVpGA",
-      "json": "[\"UswCxTlnVIPbEbScPKVpGA\",\"age_over_18\",true]",
-      "disclosure": "WyJVc3dDeFRsblZJUGJFYlNjUEtWcEdBIiwiYWdlX292ZXJfMTgiLHRydWVd",
-      "digest": "5QtnxYce8pKdMH2eCncRYZc1EzVnnwgwKv-7G3acFZc"
+      "salt": "HGxmM4N_d_NdR1HnzgJ_rw",
+      "json": "[\"HGxmM4N_d_NdR1HnzgJ_rw\",\"age_over_18\",true]",
+      "disclosure": "WyJIR3htTTROX2RfTmRSMUhuemdKX3J3IiwiYWdlX292ZXJfMTgiLHRydWVd",
+      "digest": "Rh5XML-VZw89M--r-z1J_IjlpKRkGT9A0w5naWzp1FM"
     },
     {
       "name": "height",
       "value": 175,
-      "salt": "jHHLZPiDzLKB-XjScmvfmA",
-      "json": "[\"jHHLZPiDzLKB-XjScmvfmA\",\"height\",175]",
-      "disclosure": "WyJqSEhMWlBpRHpMS0ItWGpTY212Zm1BIiwiaGVpZ2h0IiwxNzVd",
-      "digest": "rrVptWhJCPmCcuksF4tvXz1muj-6jDw-dCvei4H1CzI"
+      "salt": "Hq5vMdVMEcoUvXLeLix26A",
+      "json": "[\"Hq5vMdVMEcoUvXLeLix26A\",\"height\",175]",
+      "disclosure": "WyJIcTV2TWRWTUVjb1V2WExlTGl4MjZBIiwiaGVpZ2h0IiwxNzVd",
+      "digest": "9WnrBUjFUP5uDGm0k0f0iSgZLpLiG239XhwFSDSSa6Y"
     }
   ]
 }

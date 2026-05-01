@@ -44,13 +44,28 @@ async function main() {
   const holderPub = await exportJWK(holder.publicKey);
 
   // Selectively-disclosable claims — note the MIXED TYPES (the whole point).
+  // BIG=1 generates a fuller PID-sized credential (more `_sd` entries + a longer
+  // presented bundle) to exercise the GENEROUS circuit capacities — this one
+  // would NOT fit the old tight constants (kMaxSHA=13 / PB=18).
+  const BIG = process.env.BIG === '1';
   const disclosures = [
     makeDisclosure('given_name', 'Erika'),       // string
     makeDisclosure('family_name', 'Mustermann'), // string
     makeDisclosure('birthdate', '1963-08-12'),   // date (string)
     makeDisclosure('age_over_18', true),         // boolean
     makeDisclosure('height', 175),               // number
+    ...(BIG ? [
+      makeDisclosure('age_over_21', true),
+      makeDisclosure('age_in_years', 61),
+      makeDisclosure('nationality', 'DE'),
+      makeDisclosure('place_of_birth', 'Berlin'),
+      makeDisclosure('resident_city', 'Köln'),
+      makeDisclosure('resident_postal_code', '51147'),
+      makeDisclosure('resident_street', 'Heidestraße 17'),
+      makeDisclosure('email', 'erika@example.de'),
+    ] : []),
   ];
+  const sfx = BIG ? '-big' : '';
 
   // Digests go in `_sd` (sorted, per spec). Other claims stay in the clear.
   const sd = disclosures.map((d) => d.digest).sort();
@@ -86,17 +101,17 @@ async function main() {
   // Full compact SD-JWT with Key Binding.
   const compact = sdPart + kbjwt;
 
-  fs.writeFileSync(path.join(OUT, 'sdjwt.txt'), compact);
+  fs.writeFileSync(path.join(OUT, `sdjwt${sfx}.txt`), compact);
   fs.writeFileSync(
-    path.join(OUT, 'issuer-jwk.json'),
+    path.join(OUT, `issuer-jwk${sfx}.json`),
     JSON.stringify({ jwk: issuerPub, x_hex: jwkHex(issuerPub.x), y_hex: jwkHex(issuerPub.y) }, null, 2),
   );
   fs.writeFileSync(
-    path.join(OUT, 'holder-jwk.json'),
+    path.join(OUT, `holder-jwk${sfx}.json`),
     JSON.stringify({ jwk: holderPub, x_hex: jwkHex(holderPub.x), y_hex: jwkHex(holderPub.y) }, null, 2),
   );
   fs.writeFileSync(
-    path.join(OUT, 'parsed.json'),
+    path.join(OUT, `parsed${sfx}.json`),
     JSON.stringify({ payload, disclosures }, null, 2),
   );
 

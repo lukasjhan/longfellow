@@ -22,6 +22,8 @@ const ROOT = path.resolve(__dirname, '..');
 const BIN = path.join(ROOT, 'native/sdjwt_split');
 const FIX = path.join(ROOT, 'fixtures/sdjwt.txt');
 const JWK = path.join(ROOT, 'fixtures/issuer-jwk.json');
+const BIGFIX = path.join(ROOT, 'fixtures/sdjwt-big.txt');
+const BIGJWK = path.join(ROOT, 'fixtures/issuer-jwk-big.json');
 const CLAIMS = 'given_name,age_over_18,height';
 const VCT = 'https://credentials.example/pid';
 const line = () => console.log('─'.repeat(70));
@@ -38,9 +40,9 @@ function sh(cmd, args, opts = {}) {
 
 // run the split binary; return {ok, accept, out} where `accept` = both circuits
 // accepted (normal mode) and `ok` = process exit 0 (= expected outcome).
-function runSplit(now, env = {}) {
+function runSplit(now, env = {}, fix = FIX, jwk = JWK) {
   try {
-    const out = sh(BIN, [FIX, JWK, String(now), CLAIMS, VCT], {
+    const out = sh(BIN, [fix, jwk, String(now), CLAIMS, VCT], {
       env: { ...process.env, ...env },
     });
     return { ok: true, accept: /soundly linked/.test(out), out };
@@ -48,6 +50,8 @@ function runSplit(now, env = {}) {
     return { ok: false, accept: false, out: (e.stdout || '').toString() };
   }
 }
+
+const blocks = (n) => Math.ceil((n + 9) / 64);
 
 const show = (out) =>
   process.stdout.write(
@@ -104,6 +108,30 @@ function main() {
   // tamper mode: the binary exits 0 when BOTH correctly rejected (test PASS).
   if (!v3.ok || /FAIL/.test(v3.out)) throw new Error('tamper test did not enforce the link!');
   console.log('  → 변조 시 양 회로 REJECT ✅  (MAC 링크가 실제로 load-bearing)');
+
+  console.log('\n' + '─'.repeat(70));
+  console.log('  [5] BIG — 13속성 PID급 크레덴셜 (옛 상수면 초과로 깨졌을 토큰)');
+  line();
+  if (fs.existsSync(path.join(ROOT, 'node_modules'))) {
+    try {
+      sh('node', [path.join(ROOT, 'tools/gen-sdjwt.mjs')], { env: { ...process.env, BIG: '1' } });
+    } catch { /* fall back to committed big fixture */ }
+  }
+  if (fs.existsSync(BIGFIX)) {
+    const big = fs.readFileSync(BIGFIX, 'utf8').trim();
+    const jwt = big.slice(0, big.indexOf('~'));
+    const hp = jwt.slice(0, jwt.indexOf('.', jwt.indexOf('.') + 1));
+    const pres = big.slice(0, big.lastIndexOf('~') + 1);
+    console.log(`  token: ${big.length} chars, ${big.split('~').length - 2} disclosures`);
+    console.log(`  header.payload ${hp.length}B → ${blocks(hp.length)} SHA블록 (옛 kMaxSHA=13 초과, 새 32 OK)`);
+    console.log(`  presented      ${pres.length}B → ${blocks(pres.length)} SHA블록 (옛 PB=18 초과, 새 40 OK)`);
+    const vb = runSplit(1700000000, {}, BIGFIX, BIGJWK);
+    show(vb.out);
+    if (!vb.accept) throw new Error('big credential failed');
+    console.log('  → ACCEPT ✅  넉넉한 상수 덕에 큰 크레덴셜도 동작 (초과 시엔 명확한 에러)');
+  } else {
+    console.log('  (big fixture 없음 — `BIG=1 pnpm run gen:sdjwt` 로 생성)');
+  }
 
   console.log('\n' + '═'.repeat(70));
   console.log('  ✅ SD-JWT-VC 선택공개 ZK — mdoc과 동일한 2회로 + MAC 아키텍처');
