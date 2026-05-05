@@ -109,7 +109,19 @@ substring의 prefix 모호성(`18`⊂`180`)이 원천 소거된다. (레퍼런�
     양 회로 모두 REJECT 확인. 3속성 **prove(both) ~0.95s, 번들 353KB, ACCEPT**.
   - **비교**: monolithic(`sdjwt_full`) end-to-end ~6.6s vs split ~1.7s(≈4배), prove만 ~6배.
     회로 캐시 145MB→3MB(mono) vs 164KB+948KB(split).
-- **M8 (남음/선택)**: W3C VC, 공개 API/Node 바인딩화, 단일 번들 직렬화/역직렬화 정리.
+- **M8 ✅** (실사용 견고화): 회로 상수를 mdoc 수준으로 **넉넉히** + **초과 시 명확한 에러**.
+  - 상수 상향: kMaxSHA 13→32(payload 2KB), KBB 4→6, PB 18→40(presented 2.5KB),
+    MAXB 2→4(disclosure 256B), MAXPAT 96→160, MAXVCT 80→128, LOGM 11→12.
+    세 바이너리(split/hash/full) 동일 적용. 캐시 파일명에 geometry 태그로 자동 무효화.
+  - `check_capacity()`: header.payload/KB/presented SHA블록, decoded payload, presented<2^LOGM,
+    vct·disclosure 패턴 길이를 호스트에서 검사 → 버퍼 오버플로 대신 구체적 에러(exit 2).
+    (mdoc의 `MDOC_PROVER_TAGGED_MSO_TOO_BIG`에 해당.)
+  - **큰 fixture 검증**: `BIG=1` 발급(13속성 PID급, header.payload 20블록·presented 35블록 —
+    **옛 상수면 초과**)을 split으로 ACCEPT. `demo:sdjwt-split` [5]단계로 시연.
+  - 비용: split 3속성 prove ~0.95s→~1.6s(여전히 monolithic↓), monolithic은 ~13s(회로 318MB,
+    RAM 6.4GB) → 분리 이점 ~8배로 더 부각.
+- **M9 (남음/선택)**: W3C VC, 공개 API/Node 바인딩화, 단일 번들 직렬화/역직렬화 정리,
+  크기 티어(여러 프로파일 자동 선택), status/revocation·type metadata·alg 유연성.
 
 > 현재 상태: **mdoc 패리티 이상 + mdoc과 동일한 2체+MAC 아키텍처까지 달성** — SD-JWT-VC
 > 선택공개 ZK가 실제 토큰에서 end-to-end 동작. 모든 값 타입(불리언/숫자/날짜) + 유효기간(exp)

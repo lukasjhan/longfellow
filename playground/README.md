@@ -127,15 +127,21 @@ native/sdjwt_full fixtures/sdjwt.txt fixtures/issuer-jwk.json 1700000000 \
   넣습니다(건전). e2는 양 회로 공개입력.
 
 ```bash
-pnpm run demo:sdjwt-split             # ⭐ Node 데모: issue → 2회로 present+verify → 만료/변조 거부
+pnpm run demo:sdjwt-split             # ⭐ Node 데모: issue → 2회로 present+verify → 만료/변조/큰토큰
+pnpm run gen:sdjwt-big                # 13속성 PID급 큰 크레덴셜 발급(fixtures/sdjwt-big.txt)
 native/sha_bench                      # Fp256 vs GF(2^128) SHA 회로크기·시간 벤치
 native/sdjwt_split                    # 2회로 present+verify (3속성), 둘 다 ACCEPT
 TAMPER=1 native/sdjwt_split           # mac 1비트 변조 → 양 회로 REJECT (링크 강제 증명)
 ```
 
-측정(3속성): **prove(both) ~0.95s, 번들 353KB** (sig 194KB + hash 158KB). 단일
-`sdjwt_full`(~6.6s, end-to-end)과 비교해 **약 4–6배 단축**. 회로 캐시도 145MB→3MB(단일)
-대비 164KB+948KB(분리)로 작습니다.
+측정(3속성): **prove(both) ~1.6s, 번들 386KB** (sig 194KB + hash 192KB). 단일
+`sdjwt_full`(~13s, end-to-end)과 비교해 **약 8배 단축**. 회로 캐시도 318MB→6.5MB(단일)
+대비 164KB+1.7MB(분리)로 작습니다.
+
+**용량은 고정(모든 ZK의 본질)이되 넉넉히** — `kMaxSHA=32`(payload 2KB)·`PB=40`(presented
+2.5KB)·`MAXB=4`(disclosure 256B) 등 mdoc 수준으로 잡았고, 토큰이 이를 넘으면 호스트가
+버퍼 오버플로 대신 **명확한 에러**를 냅니다(예: `... > kMaxSHA=32 (2048B)`, mdoc의
+`MDOC_PROVER_TAGGED_MSO_TOO_BIG`에 해당). 13속성 큰 토큰도 동작합니다(데모 [5]단계).
 
 단계별 실행도 가능합니다(상태는 `artifacts/`에 저장):
 
