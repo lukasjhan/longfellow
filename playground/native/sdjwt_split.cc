@@ -741,6 +741,7 @@ int main(int argc, char** argv) {
   ZkProof<Fp256Base> pr_s(*Csig, kRate, kNreq);
   if (!pr_h.read(rb, Fs) || !pr_s.read(rb, p256_base)) { printf("proof read failed\n"); return 1; }
 
+  auto tv0 = std::chrono::steady_clock::now();
   Transcript tv((const uint8_t*)"sdjwt-split", 11, kVer);
   ZkVerifier<f_128, hashc::RSGf> hash_v(*Chash, rsf_h, kRate, kNreq, Fs);
   ZkVerifier<Fp256Base, sigc::RSFp> sig_v(*Csig, rsf_s, kRate, kNreq, p256_base);
@@ -755,6 +756,7 @@ int main(int argc, char** argv) {
   hashc::fill(pub_hash, true, *Chash, Fs, compact, now, claims, vct, nullptr, gmacs2, av2);
   bool vh = hash_v.verify(pr_h, pub_hash, tv);
   bool vsg = sig_v.verify(pr_s, pub_sig, tv);
+  long verify_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - tv0).count();
 
   bool sok = psg && vsg, hok = ph && vh;
   printf("  sig  (Fp256)   : ninputs=%zu circuit=%zu KB  proof=%zu KB  %s\n",
@@ -767,8 +769,8 @@ int main(int argc, char** argv) {
            (!sok && !hok) ? "yes" : "no", pass ? "PASS ✅" : "FAIL ❌");
     return pass ? 0 : 1;
   }
-  printf("  TOTAL          : prove(both)=%ld ms  bundle=%zu KB  link=MAC(e,dpkx,dpky), a_v from transcript -> %s\n",
-         prove_ms, bundle.size() / 1024,
+  printf("  TOTAL          : prove=%ld ms  verify=%ld ms  bundle=%zu KB  link=MAC(e,dpkx,dpky), a_v from transcript -> %s\n",
+         prove_ms, verify_ms, bundle.size() / 1024,
          (sok && hok) ? "ACCEPT ✅ (two circuits, soundly linked)" : "REJECT ❌");
   return (sok && hok) ? 0 : 1;
 }
