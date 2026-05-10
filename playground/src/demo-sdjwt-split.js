@@ -101,6 +101,14 @@ function main() {
   if (v2.accept) throw new Error('expired credential was accepted!');
 
   console.log('\n' + '─'.repeat(70));
+  console.log('  [3b] ADVERSARIAL — 만료 토큰 + 악성 prover (EVIL_EXP: exp_idx→letters)');
+  console.log('       `"exp":` 앵커·자릿수 검증이 없으면 letters(>now)로 만료 우회 (수정 전엔 ACCEPT)');
+  line();
+  const v2b = runSplit(9999999999, { EVIL_EXP: '1' });
+  console.log(`  → ${v2b.accept ? 'ACCEPT ❌ (soundness broken!)' : 'REJECT ✅  (앵커가 우회를 차단)'}`);
+  if (v2b.accept) throw new Error('SOUNDNESS: malicious exp_idx bypassed expiry!');
+
+  console.log('\n' + '─'.repeat(70));
   console.log('  [4] TAMPER — 번들의 mac_e 1비트 변조 → 양 회로 모두 REJECT (링크 강제 증명)');
   line();
   const v3 = runSplit(1700000000, { TAMPER: '1' });

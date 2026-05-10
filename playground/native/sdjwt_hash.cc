@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <chrono>
 #include <fstream>
@@ -217,10 +218,25 @@ void assert_logic(const LC& L, const Inputs& in) {
   LC::bitvec<LOGM> plen(in.payload_len);
   b64.base64_rawurl_decode_len(shbuf, dec, DECP, plen);
 
-  // exp
-  v8 ed[10];
-  r.shift(in.exp_idx, 10, ed, DECP, dec, zero, 3);
-  L.assert1(leq_bytes(L, in.now, ed, 10));
+  // exp: anchor to the literal `"exp":` (exp_idx points at the opening `"`), then
+  // require exactly 10 ASCII digits followed by a `,`/`}` delimiter, then now<=exp.
+  // Without the anchor + digit/delimiter checks a malicious prover could point
+  // exp_idx at any window >= now (e.g. letters, since 'a'>'9') and bypass expiry.
+  {
+    v8 ew[17];  // 6 (`"exp":`) + 10 digits + 1 delimiter
+    r.shift(in.exp_idx, 17, ew, DECP, dec, zero, 3);
+    static const char EK[6] = {'"', 'e', 'x', 'p', '"', ':'};
+    for (size_t j = 0; j < 6; ++j)
+      L.assert1(L.eq(8, ew[j].data(), vb(L, (uint8_t)EK[j]).data()));
+    v8 c0 = vb(L, '0'), c9 = vb(L, '9');
+    for (size_t j = 6; j < 16; ++j) {
+      L.assert1(L.lnot(L.lt(8, ew[j].data(), c0.data())));  // ew[j] >= '0'
+      L.assert1(L.lnot(L.lt(8, c9.data(), ew[j].data())));  // ew[j] <= '9'
+    }
+    L.assert1(L.lor(L.eq(8, ew[16].data(), vb(L, ',').data()),
+                    L.eq(8, ew[16].data(), vb(L, '}').data())));
+    L.assert1(leq_bytes(L, in.now, &ew[6], 10));
+  }
 
   // vct
   v8 vs[MAXVCT];
@@ -420,7 +436,7 @@ int main(int argc, char** argv) {
   std::string msg = jwt.substr(0, d2);
   std::string payload_b64 = jwt.substr(d1 + 1, d2 - d1 - 1);
   std::string payload = b64d(payload_b64);
-  size_t exp_idx = payload.find("\"exp\":") + 6;
+  size_t exp_idx = payload.find("\"exp\":");  // points at the `"` of `"exp":` (in-circuit anchor)
   std::string vct_pat = "\"vct\":\"" + c.vct + "\"";
   size_t vct_idx = payload.find(vct_pat);
 
@@ -483,7 +499,7 @@ int main(int argc, char** argv) {
   size_t sl = bindir.rfind('/');
   std::string cacheDir = (sl == std::string::npos ? std::string(".") : bindir.substr(0, sl)) + "/../circuits-cache";
   mkdir(cacheDir.c_str(), 0755);
-  char geo[64]; snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu", nattr, kMaxSHA, KBB, PB, MAXB);
+  char geo[64]; snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu-e1", nattr, kMaxSHA, KBB, PB, MAXB);
   std::string cacheFile = cacheDir + "/sdjwt-hash-" + geo + ".bin";
 
   std::unique_ptr<Circuit<f_128>> C;
@@ -550,7 +566,13 @@ int main(int argc, char** argv) {
     f.push_back(numb, 8, Fs);
     f.push_back(d1 + 1, LOGM, Fs);
     f.push_back(payload_b64.size(), LOGM, Fs);
-    f.push_back(exp_idx, LOGM, Fs);
+    // [adversarial prover] EVIL_EXP points exp_idx at a letters run instead of
+    // the real exp digits. ASCII letters > digits, so the lexicographic now<=ed
+    // check passes regardless of the true exp. Pre-fix: an EXPIRED token ACCEPTs.
+    // Post-fix (literal `"exp":` anchor + digit check): this REJECTs.
+    size_t exp_idx_w = exp_idx;
+    if (getenv("EVIL_EXP")) { exp_idx_w = payload.find("https"); printf("  [EVIL_EXP] exp_idx -> letters @ %zu (not the real exp)\n", exp_idx_w); }
+    f.push_back(exp_idx_w, LOGM, Fs);
     f.push_back(vct_idx, LOGM, Fs);
     f.push_back(xi, LOGM, Fs);
     f.push_back(yi, LOGM, Fs);

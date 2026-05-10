@@ -374,9 +374,23 @@ void assert_logic(const LC& L, const Inputs& in) {
   LC::bitvec<LOGM> plen(in.payload_len);
   b64.base64_rawurl_decode_len(shbuf, dec, DECP, plen);
 
-  v8 ed[10];
-  r.shift(in.exp_idx, 10, ed, DECP, dec, zero, 3);
-  L.assert1(leq_bytes(L, in.now, ed, 10));
+  // exp: anchor to `"exp":` (exp_idx -> opening `"`), require 10 ASCII digits +
+  // delimiter, then now<=exp. Prevents pointing exp_idx at a >=now letters window.
+  {
+    v8 ew[17];
+    r.shift(in.exp_idx, 17, ew, DECP, dec, zero, 3);
+    static const char EK[6] = {'"', 'e', 'x', 'p', '"', ':'};
+    for (size_t j = 0; j < 6; ++j)
+      L.assert1(L.eq(8, ew[j].data(), vb(L, (uint8_t)EK[j]).data()));
+    v8 c0 = vb(L, '0'), c9 = vb(L, '9');
+    for (size_t j = 6; j < 16; ++j) {
+      L.assert1(L.lnot(L.lt(8, ew[j].data(), c0.data())));
+      L.assert1(L.lnot(L.lt(8, c9.data(), ew[j].data())));
+    }
+    L.assert1(L.lor(L.eq(8, ew[16].data(), vb(L, ',').data()),
+                    L.eq(8, ew[16].data(), vb(L, '}').data())));
+    L.assert1(leq_bytes(L, in.now, &ew[6], 10));
+  }
 
   v8 vs[MAXVCT];
   r.shift(in.vct_idx, MAXVCT, vs, DECP, dec, zero, 3);
@@ -526,7 +540,7 @@ bool fill(Dense<f_128>& W, bool pub_only, const Circuit<f_128>& C, const f_128& 
   std::string msg = jwt.substr(0, d2);
   std::string payload_b64 = jwt.substr(d1 + 1, d2 - d1 - 1);
   std::string payload = b64d(payload_b64);
-  size_t exp_idx = payload.find("\"exp\":") + 6;
+  size_t exp_idx = payload.find("\"exp\":");  // points at the `"` of `"exp":` (in-circuit anchor)
   std::string vct_pat = "\"vct\":\"" + vct + "\"";
   size_t vct_idx = payload.find(vct_pat);
   uint8_t edig[32]; ::SHA256((const uint8_t*)msg.data(), msg.size(), edig);
@@ -588,7 +602,10 @@ bool fill(Dense<f_128>& W, bool pub_only, const Circuit<f_128>& C, const f_128& 
     for (size_t b = 0; b < kMaxSHA; ++b) fill_sha(f, enc, bw[b]);
     f.push_back(numb, 8, Fs);
     f.push_back(d1 + 1, LOGM, Fs); f.push_back(payload_b64.size(), LOGM, Fs);
-    f.push_back(exp_idx, LOGM, Fs); f.push_back(vct_idx, LOGM, Fs);
+    // [adversarial prover] EVIL_EXP points exp_idx at a letters run (>= now) to
+    // try to bypass expiry. The `"exp":` anchor + digit check must REJECT this.
+    size_t exp_idx_w = (getenv("EVIL_EXP") ? payload.find("https") : exp_idx);
+    f.push_back(exp_idx_w, LOGM, Fs); f.push_back(vct_idx, LOGM, Fs);
     f.push_back(xi, LOGM, Fs); f.push_back(yi, LOGM, Fs);
     for (size_t i = 0; i < DECKB; ++i) f.push_back(kb_in[i], 8, Fs);
     for (size_t b = 0; b < KBB; ++b) fill_sha(f, enc, kb_bw[b]);
@@ -669,7 +686,7 @@ int main(int argc, char** argv) {
       [] { return sigc::make_sig_circuit(); }, rs.circ_kb);
   // cache key includes the geometry so changing capacities auto-invalidates it.
   char geo[64];
-  snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu", nattr,
+  snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu-e1", nattr,
            hashc::kMaxSHA, hashc::KBB, hashc::PB, hashc::MAXB);
   auto Chash = get_circuit<f_128>(Fs, GF2_128_ID, cdir + "/sdjwt-hash-" + geo + ".bin",
       [&] { return hashc::make_hash_circuit(Fs, nattr); }, rh.circ_kb);

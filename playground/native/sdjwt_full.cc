@@ -259,10 +259,23 @@ void assert_logic(const LC& L, const Inputs& in) {
   LC::bitvec<LOGM> plen(in.payload_len);
   b64.base64_rawurl_decode_len(shift_buf, dec, DECP, plen);
 
-  // exp
-  v8 ed[10];
-  r.shift(in.exp_idx, 10, ed, DECP, dec, zero, 3);
-  L.assert1(leq_bytes(L, in.now, ed, 10));
+  // exp: anchor to `"exp":` (exp_idx -> opening `"`), require 10 ASCII digits +
+  // delimiter, then now<=exp. Prevents pointing exp_idx at a >=now letters window.
+  {
+    v8 ew[17];
+    r.shift(in.exp_idx, 17, ew, DECP, dec, zero, 3);
+    static const char EK[6] = {'"', 'e', 'x', 'p', '"', ':'};
+    for (size_t j = 0; j < 6; ++j)
+      L.assert1(L.eq(8, ew[j].data(), vb(L, (uint8_t)EK[j]).data()));
+    v8 c0 = vb(L, '0'), c9 = vb(L, '9');
+    for (size_t j = 6; j < 16; ++j) {
+      L.assert1(L.lnot(L.lt(8, ew[j].data(), c0.data())));
+      L.assert1(L.lnot(L.lt(8, c9.data(), ew[j].data())));
+    }
+    L.assert1(L.lor(L.eq(8, ew[16].data(), vb(L, ',').data()),
+                    L.eq(8, ew[16].data(), vb(L, '}').data())));
+    L.assert1(leq_bytes(L, in.now, &ew[6], 10));
+  }
 
   // vct: payload contains the requested `"vct":"<type>"`
   v8 vs[MAXVCT];
@@ -560,7 +573,7 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   Nat ns = nat_from_be((const uint8_t*)sigraw.data() + 32);
   EcdsaHostW sw(p256_scalar, p256);
   if (!sw.compute_witness(c.pkX, c.pkY, ne, nr, ns)) { log(ERROR, "issuer sig invalid"); return false; }
-  size_t exp_idx = payload.find("\"exp\":") + 6;
+  size_t exp_idx = payload.find("\"exp\":");  // points at the `"` of `"exp":` (in-circuit anchor)
 
   f.push_back(p256_base.to_montgomery(ne));  // e_
   sw.fill_witness(f);                        // sig
@@ -716,7 +729,7 @@ int main(int argc, char** argv) {
   size_t sl = bindir.rfind('/');
   std::string cacheDir = (sl == std::string::npos ? std::string(".") : bindir.substr(0, sl)) + "/../circuits-cache";
   mkdir(cacheDir.c_str(), 0755);
-  char geo[64]; snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu", nattr, kMaxSHA, KBB, PB, MAXB);
+  char geo[64]; snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu-e1", nattr, kMaxSHA, KBB, PB, MAXB);
   std::string cacheFile = cacheDir + "/sdjwt-" + geo + ".bin";
 
   std::unique_ptr<Circuit<Fp256Base>> C;
