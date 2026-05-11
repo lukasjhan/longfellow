@@ -98,6 +98,8 @@ constexpr size_t MAXB = 4;              // SHA blocks per disclosure: up to 256 
 constexpr size_t MAXDD = (64 * MAXB * 6) / 8;
 constexpr size_t MAXPAT = 160;         // max disclosure suffix pattern
 constexpr size_t MAXVCT = 128;         // max `"vct":"<value>"` pattern
+constexpr size_t MAXNONCE = 64;        // max `"nonce":"<n>"` pattern (KB freshness)
+constexpr size_t MAXAUD = 128;         // max `"aud":"<v>"` pattern (KB audience)
 // number of disclosures (nattr) is now a runtime parameter
 constexpr size_t KBB = 6;              // SHA blocks for KB header.payload: 384 B
 constexpr size_t DECKB = 64 * KBB;     // KB payload decode buffer
@@ -148,6 +150,10 @@ struct Inputs {
   v8 now[10];
   v8 vct_pat[MAXVCT];  // requested `"vct":"<type>"` (public)
   v8 vct_len;
+  v8 nonce_pat[MAXNONCE];  // verifier-chosen `"nonce":"<n>"` (KB freshness)
+  v8 nonce_len;
+  v8 aud_pat[MAXAUD];      // verifier-chosen `"aud":"<v>"` (KB audience)
+  v8 aud_len;
   EltW e2;            // KB message hash (verifier computes from kbjwt)
   std::vector<Slot> slot;
   // private: front-end
@@ -168,7 +174,7 @@ struct Inputs {
   SBW kb_sha[KBB];
   v8 kb_nb;
   v256 e2_bits;               // SHA(kb_pre) bits (== e2)
-  LC::bitvec<LOGM> kb_pl_ind, kb_pl_len, sd_hash_idx;
+  LC::bitvec<LOGM> kb_pl_ind, kb_pl_len, sd_hash_idx, nonce_idx, aud_idx;
   v8 presented[PRES];         // issuer-jwt~disc1~…~discN~  (SHA == sd_hash)
   SBW pres_sha[PB];
   v8 pres_nb;
@@ -185,6 +191,10 @@ void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in,
   for (size_t i = 0; i < 10; ++i) in.now[i] = L.template vinput<8>();
   for (size_t i = 0; i < MAXVCT; ++i) in.vct_pat[i] = L.template vinput<8>();
   in.vct_len = L.template vinput<8>();
+  for (size_t i = 0; i < MAXNONCE; ++i) in.nonce_pat[i] = L.template vinput<8>();
+  in.nonce_len = L.template vinput<8>();
+  for (size_t i = 0; i < MAXAUD; ++i) in.aud_pat[i] = L.template vinput<8>();
+  in.aud_len = L.template vinput<8>();
   in.e2 = L.eltw_input();
   for (size_t s = 0; s < nattr; ++s) {
     for (size_t i = 0; i < MAXPAT; ++i) in.slot[s].pattern[i] = L.template vinput<8>();
@@ -216,6 +226,8 @@ void declare_inputs(const LC& L, QuadCircuit<Fp256Base>& Q, Inputs& in,
   in.kb_pl_ind = L.template vinput<LOGM>();
   in.kb_pl_len = L.template vinput<LOGM>();
   in.sd_hash_idx = L.template vinput<LOGM>();
+  in.nonce_idx = L.template vinput<LOGM>();
+  in.aud_idx = L.template vinput<LOGM>();
   for (size_t i = 0; i < PRES; ++i) in.presented[i] = L.template vinput<8>();
   for (size_t i = 0; i < PB; ++i) in.pres_sha[i].input(L);
   in.pres_nb = L.template vinput<8>();
@@ -313,6 +325,18 @@ void assert_logic(const LC& L, const Inputs& in) {
   v8 kbdec[DECKB];
   LC::bitvec<LOGM> kbpl(in.kb_pl_len);
   b64.base64_rawurl_decode_len(kbshift, kbdec, DECKB, kbpl);
+  // KB freshness/audience: holder-signed KB payload must contain verifier-chosen
+  // nonce/aud (pattern includes `"nonce":"`/`"aud":"` literal + closing quote).
+  {
+    v8 ns[MAXNONCE];
+    r.shift(in.nonce_idx, MAXNONCE, ns, DECKB, kbdec, zero, 3);
+    for (size_t j = 0; j < MAXNONCE; ++j)
+      L.assert_implies(L.vlt(j, in.nonce_len), L.eq(8, ns[j].data(), in.nonce_pat[j].data()));
+    v8 as[MAXAUD];
+    r.shift(in.aud_idx, MAXAUD, as, DECKB, kbdec, zero, 3);
+    for (size_t j = 0; j < MAXAUD; ++j)
+      L.assert_implies(L.vlt(j, in.aud_len), L.eq(8, as[j].data(), in.aud_pat[j].data()));
+  }
   v8 sdh_b64[43];
   r.shift(in.sd_hash_idx, 43, sdh_b64, DECKB, kbdec, zero, 3);
   v8 sdh[33];
@@ -475,6 +499,7 @@ struct Concrete {
   Fp256Base::Elt pkX, pkY;
   std::vector<std::string> claims;  // names to disclose (NATTR of them)
   std::string vct;                  // expected credential type
+  std::string nonce, aud;           // verifier-chosen KB freshness/audience
 };
 
 void push_v8(DenseFiller<Fp256Base>& f, uint8_t b) { f.push_back(b, 8, p256_base); }
@@ -548,6 +573,12 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   std::string vct_pat = "\"vct\":\"" + c.vct + "\"";
   for (size_t i = 0; i < MAXVCT; ++i) push_v8(f, i < vct_pat.size() ? (uint8_t)vct_pat[i] : 0);
   push_v8(f, (uint8_t)vct_pat.size());
+  std::string nonce_pat = "\"nonce\":\"" + c.nonce + "\"";
+  for (size_t i = 0; i < MAXNONCE; ++i) push_v8(f, i < nonce_pat.size() ? (uint8_t)nonce_pat[i] : 0);
+  push_v8(f, (uint8_t)nonce_pat.size());
+  std::string aud_pat = "\"aud\":\"" + c.aud + "\"";
+  for (size_t i = 0; i < MAXAUD; ++i) push_v8(f, i < aud_pat.size() ? (uint8_t)aud_pat[i] : 0);
+  push_v8(f, (uint8_t)aud_pat.size());
   f.push_back(e2);
   for (size_t s = 0; s < nattr; ++s) {
     std::string dj = b64url_decode(chosen[s]);
@@ -619,6 +650,8 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   std::string kb_pl_b64 = kbjwt.substr(kd1 + 1, kd2 - kd1 - 1);
   std::string kb_pl = b64url_decode(kb_pl_b64);
   size_t sdh_pos = kb_pl.find("\"sd_hash\":\"") + 11;
+  size_t nonce_pos = kb_pl.find("\"nonce\":\"");
+  size_t aud_pos = kb_pl.find("\"aud\":\"");
 
   for (size_t i = 0; i < DECKB; ++i) push_v8(f, kb_in[i]);
   for (size_t i = 0; i < KBB; ++i) fill_sha(f, enc, kb_bw[i]);
@@ -627,6 +660,8 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   f.push_back(kd1 + 1, LOGM, p256_base);
   f.push_back(kb_pl_b64.size(), LOGM, p256_base);
   f.push_back(sdh_pos, LOGM, p256_base);
+  f.push_back(nonce_pos, LOGM, p256_base);
+  f.push_back(aud_pos, LOGM, p256_base);
   for (size_t i = 0; i < PRES; ++i) push_v8(f, pres_in[i]);
   for (size_t i = 0; i < PB; ++i) fill_sha(f, enc, pres_bw[i]);
   push_v8(f, pres_numb);
@@ -707,6 +742,8 @@ int main(int argc, char** argv) {
     c.claims = {"given_name", "age_over_18", "height"};  // string, boolean, number
   }
   c.vct = (argc > 5) ? argv[5] : "https://credentials.example/pid";
+  c.nonce = (argc > 6) ? argv[6] : "1234567890";              // verifier-chosen nonce
+  c.aud = (argc > 7) ? argv[7] : "https://verifier.example";  // verifier-chosen aud
 
   std::string j = read_file(jwk);
   auto hex = [&](const char* key) {
@@ -729,7 +766,7 @@ int main(int argc, char** argv) {
   size_t sl = bindir.rfind('/');
   std::string cacheDir = (sl == std::string::npos ? std::string(".") : bindir.substr(0, sl)) + "/../circuits-cache";
   mkdir(cacheDir.c_str(), 0755);
-  char geo[64]; snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu-e1", nattr, kMaxSHA, KBB, PB, MAXB);
+  char geo[64]; snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu-e2", nattr, kMaxSHA, KBB, PB, MAXB);
   std::string cacheFile = cacheDir + "/sdjwt-" + geo + ".bin";
 
   std::unique_ptr<Circuit<Fp256Base>> C;

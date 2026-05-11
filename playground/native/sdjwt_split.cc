@@ -277,6 +277,8 @@ constexpr size_t PRE = 64 * kMaxSHA;
 constexpr size_t DECP = 64 * (kMaxSHA - 2);  // decoded payload buffer: 1920 B
 constexpr size_t LOGM = 12;               // routing index width: up to 4096
 constexpr size_t MAXVCT = 128;            // `"vct":"<type>"` pattern
+constexpr size_t MAXNONCE = 64;           // `"nonce":"<n>"` pattern (KB freshness)
+constexpr size_t MAXAUD = 128;            // `"aud":"<v>"` pattern (KB audience)
 constexpr size_t MAXB = 4;                // SHA blocks per disclosure: up to 256 B
 constexpr size_t MAXDD = (64 * MAXB * 6) / 8;
 constexpr size_t MAXPAT = 160;            // disclosure suffix `","claim",value]`
@@ -309,13 +311,15 @@ struct Slot {
   LC::bitvec<8> disc_len, disc_shift; LC::bitvec<LOGM> sd_idx;
 };
 struct Inputs {
-  v8 now[10]; v8 vct_pat[MAXVCT]; v8 vct_len; v256 e2;
+  v8 now[10]; v8 vct_pat[MAXVCT]; v8 vct_len;
+  v8 nonce_pat[MAXNONCE]; v8 nonce_len; v8 aud_pat[MAXAUD]; v8 aud_len;
+  v256 e2;
   std::vector<Slot> slot; MACTag mac[7];
   v256 e, dpkx, dpky;
   v8 preimage[PRE]; SBW sha[kMaxSHA]; v8 nb;
   LC::bitvec<LOGM> payload_ind, payload_len, exp_idx, vct_idx, cnf_x_idx, cnf_y_idx;
   v8 kb_pre[DECKB]; SBW kb_sha[KBB]; v8 kb_nb;
-  LC::bitvec<LOGM> kb_pl_ind, kb_pl_len, sd_hash_idx;
+  LC::bitvec<LOGM> kb_pl_ind, kb_pl_len, sd_hash_idx, nonce_idx, aud_idx;
   v8 presented[PRES]; SBW pres_sha[PB]; v8 pres_nb; v256 pres_hash_bits;
   std::vector<LC::bitvec<LOGM>> disc_in_pres;
   MACW macw[3];
@@ -326,6 +330,10 @@ void declare_inputs(const LC& L, QuadCircuit<f_128>& Q, Inputs& in, size_t nattr
   for (auto& b : in.now) b = L.template vinput<8>();
   for (auto& b : in.vct_pat) b = L.template vinput<8>();
   in.vct_len = L.template vinput<8>();
+  for (auto& b : in.nonce_pat) b = L.template vinput<8>();
+  in.nonce_len = L.template vinput<8>();
+  for (auto& b : in.aud_pat) b = L.template vinput<8>();
+  in.aud_len = L.template vinput<8>();
   in.e2 = L.template vinput<256>();
   for (size_t s = 0; s < nattr; ++s) {
     for (auto& b : in.slot[s].pattern) b = L.template vinput<8>();
@@ -344,6 +352,7 @@ void declare_inputs(const LC& L, QuadCircuit<f_128>& Q, Inputs& in, size_t nattr
   for (auto& s : in.kb_sha) s.input(L);
   in.kb_nb = L.template vinput<8>();
   in.kb_pl_ind = L.template vinput<LOGM>(); in.kb_pl_len = L.template vinput<LOGM>(); in.sd_hash_idx = L.template vinput<LOGM>();
+  in.nonce_idx = L.template vinput<LOGM>(); in.aud_idx = L.template vinput<LOGM>();
   for (auto& b : in.presented) b = L.template vinput<8>();
   for (auto& s : in.pres_sha) s.input(L);
   in.pres_nb = L.template vinput<8>();
@@ -413,6 +422,18 @@ void assert_logic(const LC& L, const Inputs& in) {
   v8 kbdec[DECKB];
   LC::bitvec<LOGM> kbpl(in.kb_pl_len);
   b64.base64_rawurl_decode_len(kbshift, kbdec, DECKB, kbpl);
+  // KB freshness/audience: holder-signed KB payload must contain verifier-chosen
+  // nonce/aud (pattern includes `"nonce":"`/`"aud":"` literal + closing quote).
+  {
+    v8 ns[MAXNONCE];
+    r.shift(in.nonce_idx, MAXNONCE, ns, DECKB, kbdec, zero, 3);
+    for (size_t j = 0; j < MAXNONCE; ++j)
+      L.assert_implies(L.vlt(j, in.nonce_len), L.eq(8, ns[j].data(), in.nonce_pat[j].data()));
+    v8 as[MAXAUD];
+    r.shift(in.aud_idx, MAXAUD, as, DECKB, kbdec, zero, 3);
+    for (size_t j = 0; j < MAXAUD; ++j)
+      L.assert_implies(L.vlt(j, in.aud_len), L.eq(8, as[j].data(), in.aud_pat[j].data()));
+  }
   v8 sdh_b64[43];
   r.shift(in.sd_hash_idx, 43, sdh_b64, DECKB, kbdec, zero, 3);
   v8 sdh[33];
@@ -533,6 +554,7 @@ bool check_capacity(const std::string& compact, const std::vector<std::string>& 
 bool fill(Dense<f_128>& W, bool pub_only, const Circuit<f_128>& C, const f_128& Fs,
           const std::string& compact, const char* now,
           const std::vector<std::string>& claims, const std::string& vct,
+          const std::string& nonce, const std::string& aud,
           const gf2k* ap, const gf2k macs6[6], gf2k av) {
   size_t nattr = claims.size();
   std::string jwt = compact.substr(0, compact.find('~'));
@@ -559,6 +581,10 @@ bool fill(Dense<f_128>& W, bool pub_only, const Circuit<f_128>& C, const f_128& 
   std::string kb_pl_b64 = kbjwt.substr(kd1 + 1, kd2 - kd1 - 1);
   std::string kb_pl = b64d(kb_pl_b64);
   size_t sdh_pos = kb_pl.find("\"sd_hash\":\"") + 11;
+  std::string nonce_pat = "\"nonce\":\"" + nonce + "\"";
+  std::string aud_pat = "\"aud\":\"" + aud + "\"";
+  size_t nonce_pos = kb_pl.find("\"nonce\":\"");
+  size_t aud_pos = kb_pl.find("\"aud\":\"");
   std::string presented = compact.substr(0, compact.rfind('~') + 1);
   uint8_t pres_in[PRES]; FlatSHA256Witness::BlockWitness pres_bw[PB]; uint8_t pres_numb = 0;
   FlatSHA256Witness::transform_and_witness_message(presented.size(), (const uint8_t*)presented.data(), PB, pres_numb, pres_in, pres_bw);
@@ -580,6 +606,10 @@ bool fill(Dense<f_128>& W, bool pub_only, const Circuit<f_128>& C, const f_128& 
     for (int i = 0; i < 10; ++i) f.push_back((uint8_t)now[i], 8, Fs);
     for (size_t i = 0; i < MAXVCT; ++i) f.push_back(i < vct_pat.size() ? (uint8_t)vct_pat[i] : 0, 8, Fs);
     f.push_back((uint8_t)vct_pat.size(), 8, Fs);
+    for (size_t i = 0; i < MAXNONCE; ++i) f.push_back(i < nonce_pat.size() ? (uint8_t)nonce_pat[i] : 0, 8, Fs);
+    f.push_back((uint8_t)nonce_pat.size(), 8, Fs);
+    for (size_t i = 0; i < MAXAUD; ++i) f.push_back(i < aud_pat.size() ? (uint8_t)aud_pat[i] : 0, 8, Fs);
+    f.push_back((uint8_t)aud_pat.size(), 8, Fs);
     push_rev_bits(f, kbdig, Fs);
     for (size_t s = 0; s < nattr; ++s) {
       std::string dj = b64d(chosen[s]);
@@ -611,6 +641,7 @@ bool fill(Dense<f_128>& W, bool pub_only, const Circuit<f_128>& C, const f_128& 
     for (size_t b = 0; b < KBB; ++b) fill_sha(f, enc, kb_bw[b]);
     f.push_back(kb_numb, 8, Fs);
     f.push_back(kd1 + 1, LOGM, Fs); f.push_back(kb_pl_b64.size(), LOGM, Fs); f.push_back(sdh_pos, LOGM, Fs);
+    f.push_back(nonce_pos, LOGM, Fs); f.push_back(aud_pos, LOGM, Fs);
     for (size_t i = 0; i < PRES; ++i) f.push_back(pres_in[i], 8, Fs);
     for (size_t b = 0; b < PB; ++b) fill_sha(f, enc, pres_bw[b]);
     f.push_back(pres_numb, 8, Fs);
@@ -653,6 +684,8 @@ int main(int argc, char** argv) {
     claims.push_back(cs.substr(p)); }
   else claims = {"given_name", "age_over_18", "height"};
   std::string vct = argc > 5 ? argv[5] : "https://credentials.example/pid";
+  std::string nonce = argc > 6 ? argv[6] : "1234567890";              // verifier-chosen nonce
+  std::string aud = argc > 7 ? argv[7] : "https://verifier.example";  // verifier-chosen aud
   size_t nattr = claims.size();
 
   std::string compact = rf(fixture);
@@ -663,6 +696,10 @@ int main(int argc, char** argv) {
   if (!hashc::check_capacity(compact, claims, vct, cap_err)) {
     printf("ERROR (cannot prove): %s\n", cap_err.c_str());
     return 2;
+  }
+  if (("\"nonce\":\"" + nonce + "\"").size() > hashc::MAXNONCE ||
+      ("\"aud\":\"" + aud + "\"").size() > hashc::MAXAUD) {
+    printf("ERROR (cannot prove): nonce/aud pattern too long\n"); return 2;
   }
 
   // ---- parse fixture; sample the prover's MAC key half a_p (committed) ----
@@ -686,7 +723,7 @@ int main(int argc, char** argv) {
       [] { return sigc::make_sig_circuit(); }, rs.circ_kb);
   // cache key includes the geometry so changing capacities auto-invalidates it.
   char geo[64];
-  snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu-e1", nattr,
+  snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu-e2", nattr,
            hashc::kMaxSHA, hashc::KBB, hashc::PB, hashc::MAXB);
   auto Chash = get_circuit<f_128>(Fs, GF2_128_ID, cdir + "/sdjwt-hash-" + geo + ".bin",
       [&] { return hashc::make_hash_circuit(Fs, nattr); }, rh.circ_kb);
@@ -710,7 +747,7 @@ int main(int argc, char** argv) {
   auto W_sig = Dense<Fp256Base>(1, Csig->ninputs);
   auto W_hash = Dense<f_128>(1, Chash->ninputs);
   if (!sigc::fill(W_sig, false, v, lk.ap, zero6, Fs.zero())) { printf("sig fill failed\n"); return 1; }
-  if (!hashc::fill(W_hash, false, *Chash, Fs, compact, now, claims, vct, lk.ap, zero6, Fs.zero())) { printf("hash fill failed\n"); return 1; }
+  if (!hashc::fill(W_hash, false, *Chash, Fs, compact, now, claims, vct, nonce, aud, lk.ap, zero6, Fs.zero())) { printf("hash fill failed\n"); return 1; }
 
   // 2) commit BOTH into one shared transcript (so a_v depends on both commits).
   Transcript tp((const uint8_t*)"sdjwt-split", 11, kVer);
@@ -770,7 +807,7 @@ int main(int argc, char** argv) {
   auto pub_sig = Dense<Fp256Base>(1, Csig->npub_in);
   auto pub_hash = Dense<f_128>(1, Chash->npub_in);
   sigc::fill(pub_sig, true, v, nullptr, gmacs2, av2);
-  hashc::fill(pub_hash, true, *Chash, Fs, compact, now, claims, vct, nullptr, gmacs2, av2);
+  hashc::fill(pub_hash, true, *Chash, Fs, compact, now, claims, vct, nonce, aud, nullptr, gmacs2, av2);
   bool vh = hash_v.verify(pr_h, pub_hash, tv);
   bool vsg = sig_v.verify(pr_s, pub_sig, tv);
   long verify_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - tv0).count();

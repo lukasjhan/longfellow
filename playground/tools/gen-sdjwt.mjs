@@ -89,9 +89,11 @@ async function main() {
 
   // Key Binding JWT: holder signs over a hash of the presented SD-JWT.
   const sd_hash = b64url(sha256(new TextEncoder().encode(sdPart)));
+  // nonce/aud are verifier-supplied in a real flow; allow override so a demo can
+  // issue a KB-JWT bound to a freshly chosen nonce (KB freshness / audience).
   const kbjwt = await new SignJWT({
-    nonce: '1234567890',
-    aud: 'https://verifier.example',
+    nonce: process.env.KB_NONCE || '1234567890',
+    aud: process.env.KB_AUD || 'https://verifier.example',
     iat: now,
     sd_hash,
   })

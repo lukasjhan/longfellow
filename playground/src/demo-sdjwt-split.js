@@ -40,9 +40,10 @@ function sh(cmd, args, opts = {}) {
 
 // run the split binary; return {ok, accept, out} where `accept` = both circuits
 // accepted (normal mode) and `ok` = process exit 0 (= expected outcome).
-function runSplit(now, env = {}, fix = FIX, jwk = JWK) {
+function runSplit(now, env = {}, fix = FIX, jwk = JWK,
+                  nonce = '1234567890', aud = 'https://verifier.example') {
   try {
-    const out = sh(BIN, [fix, jwk, String(now), CLAIMS, VCT], {
+    const out = sh(BIN, [fix, jwk, String(now), CLAIMS, VCT, nonce, aud], {
       env: { ...process.env, ...env },
     });
     return { ok: true, accept: /soundly linked/.test(out), out };
@@ -139,6 +140,30 @@ function main() {
     console.log('  → ACCEPT ✅  넉넉한 상수 덕에 큰 크레덴셜도 동작 (초과 시엔 명확한 에러)');
   } else {
     console.log('  (big fixture 없음 — `BIG=1 pnpm run gen:sdjwt` 로 생성)');
+  }
+
+  console.log('\n' + '─'.repeat(70));
+  console.log('  [6] KB FRESHNESS — 검증자가 고른 nonce/aud에 홀더 KB 서명이 묶임');
+  console.log('       (재생 방지) — 신선한 nonce로 발급 → 같은 nonce면 ACCEPT, 다르면 REJECT');
+  line();
+  if (fs.existsSync(path.join(ROOT, 'node_modules'))) {
+    const freshNonce = String(Math.floor(Math.random() * 1e10)).padStart(10, '0');
+    try {
+      // verifier issues/binds a KB-JWT to a freshly chosen nonce
+      sh('node', [path.join(ROOT, 'tools/gen-sdjwt.mjs')], { env: { ...process.env, KB_NONCE: freshNonce } });
+      console.log(`  verifier nonce: ${freshNonce}`);
+      const ok = runSplit(1700000000, {}, FIX, JWK, freshNonce);          // verifier expects the fresh nonce
+      const stale = runSplit(1700000000, {}, FIX, JWK, '0000000000');     // replayed/stale nonce
+      console.log(`  → 같은 nonce: ${ok.accept ? 'ACCEPT ✅' : 'REJECT ❌(unexpected)'}`);
+      console.log(`  → 다른 nonce(재생): ${stale.accept ? 'ACCEPT ❌ (replay!)' : 'REJECT ✅  (freshness 강제)'}`);
+      if (!ok.accept) throw new Error('matching nonce should ACCEPT');
+      if (stale.accept) throw new Error('FRESHNESS: stale/replayed nonce was accepted!');
+    } catch (e) {
+      if (/FRESHNESS|matching nonce/.test(e.message)) throw e;
+      console.log('  (gen 실패 — freshness 단계 건너뜀)');
+    }
+  } else {
+    console.log('  (node_modules 없음 — freshness 단계 건너뜀)');
   }
 
   console.log('\n' + '═'.repeat(70));
