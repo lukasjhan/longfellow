@@ -1,142 +1,137 @@
-# SD-JWT-VC 영지식 회로 설계 (Approach C: Disclosure/`_sd` 멤버십)
+# SD-JWT-VC Zero-Knowledge Circuit Design (Approach C: Disclosure/`_sd` Membership)
 
-목표: longfellow의 실험용 JWT(substring) 회로를 넘어, **mdoc급**의 SD-JWT-VC ZK를
-구현한다 — 모든 값 타입(문자열/날짜/불리언/숫자/중첩) + **유효기간(exp)** + Key
-Binding + 표준 선택공개.
+Goal: go beyond longfellow's experimental JWT (substring) circuit and implement an **mdoc-grade** SD-JWT-VC ZK — all value types (string/date/boolean/number/nested) + **validity period (exp)** + Key Binding + standard selective disclosure.
 
-## 왜 파싱이 아니라 멤버십인가
+## Why Membership Instead of Parsing
 
-mdoc도 SD-JWT도 **JSON/CBOR를 회로에서 파싱하지 않는다.** 둘 다 **클레임마다
-salt+해시**해 서명된 다이제스트 집합에 넣고, 증명은 그 **멤버십**으로 한다.
+Neither mdoc nor SD-JWT **parses JSON/CBOR inside the circuit.** Both **salt+hash each claim** and put it into a signed digest set, and the proof is done by **membership** over that set.
 
 | | mdoc | SD-JWT-VC |
 |---|---|---|
-| 클레임 단위 | `IssuerSignedItem=[digestID,salt,id,value]` (CBOR) | `Disclosure=base64url([salt,name,value])` |
-| 서명된 다이제스트 집합 | MSO `valueDigests` | payload `_sd` |
-| 증명 | SHA(item)∈valueDigests + (id,value) 일치 | SHA(disclosure)∈`_sd` + (name,value) 일치 |
+| Claim unit | `IssuerSignedItem=[digestID,salt,id,value]` (CBOR) | `Disclosure=base64url([salt,name,value])` |
+| Signed digest set | MSO `valueDigests` | payload `_sd` |
+| Proof | SHA(item)∈valueDigests + (id,value) match | SHA(disclosure)∈`_sd` + (name,value) match |
 
-→ 값이 무엇이든(불리언 `true`, 숫자 `175`) **해시 단위 안에 통째로** 들어가므로
-substring의 prefix 모호성(`18`⊂`180`)이 원천 소거된다. (레퍼런스 구현:
-`src/decode-sdjwt.js`, 데이터: `tools/gen-sdjwt.mjs` → `fixtures/`.)
+→ Whatever the value is (boolean `true`, number `175`), it goes **entirely inside the hash unit**, so substring's prefix ambiguity (`18`⊂`180`) is eliminated at the source. (Reference implementation:
+`src/decode-sdjwt.js`, data: `tools/gen-sdjwt.mjs` → `fixtures/`.)
 
-## 회로가 증명할 명제
+## The Statement the Circuit Proves
 
-공개 입력: 발급자 `pkX,pkY`, KB 해시 `e2`, `now`, 그리고 요청 disclosure마다
-`(claimName, claimValueJSON)`.
-비공개 witness: 발급자 JWT 서명, payload preimage, 각 요청 disclosure 문자열과 salt,
-그리고 위치 인덱스들.
+Public input: issuer `pkX,pkY`, KB hash `e2`, `now`, and `(claimName, claimValueJSON)` for each requested disclosure.
+Private witness: issuer JWT signature, payload preimage, each requested disclosure string and salt,
+and the position indices.
 
-1. **발급자 서명**: `ECDSA.verify3(pkX,pkY, e=SHA256(header.payload), jwt_sig)`
-2. **Key Binding**: `ECDSA.verify3(dpkX,dpkY, e2, kb_sig)` (홀더 키 `cnf.jwk`)
-3. **유효기간**: payload에서 `"exp":<digits>` 추출 → 정수화 → `now ≤ exp`
-4. **각 disclosure**:
+1. **Issuer signature**: `ECDSA.verify3(pkX,pkY, e=SHA256(header.payload), jwt_sig)`
+2. **Key Binding**: `ECDSA.verify3(dpkX,dpkY, e2, kb_sig)` (holder key `cnf.jwk`)
+3. **Validity period**: extract `"exp":<digits>` from payload → convert to integer → `now ≤ exp`
+4. **Each disclosure**:
    a. `digest = SHA256(ascii(disclosure))`
-   b. **멤버십**: `_sd`의 어떤 항목을 base64url-디코드한 32B == `digest` (그 항목 위치는
-      서명된 payload 안 → 발급자 서명으로 보증)
-   c. **구조 일치**: `disclosure`를 base64url-디코드 → `["<salt>","<name>",<value>]` 가
-      요청한 `(name,value)`와 일치 (salt는 길이 가변 witness, value는 닫는 `]`까지 매칭)
+   b. **Membership**: the 32B obtained by base64url-decoding some entry of `_sd` == `digest` (that entry's position is
+      inside the signed payload → guaranteed by the issuer signature)
+   c. **Structural match**: base64url-decode `disclosure` → `["<salt>","<name>",<value>]` matches
+      the requested `(name,value)` (salt is a variable-length witness, value is matched up to the closing `]`)
 
-## longfellow 재사용 / 신규
+## longfellow Reuse / New
 
-| 블록 | 재사용? | 출처 |
+| Block | Reuse? | Source |
 |---|---|---|
-| ECDSA verify3 (×2) | ✅ | `circuits/ecdsa/verify_circuit.h` (jwt.h가 사용) |
-| FlatSHA256 (header.payload, 그리고 disclosure 해시) | ✅ | `circuits/sha/flatsha256_circuit.h` |
-| base64url 디코드 | ✅ | `circuits/tests/base64/decode.h` (jwt.h가 사용) |
-| Routing/shift (인덱스로 정렬) | ✅ | `circuits/logic/routing.h` |
-| 바이트 동등/`vlt`/`assert_implies` | ✅ | `circuits/logic/logic.h` |
-| **`_sd` 멤버십** (SHA==base64decode(entry)) | 🆕 | mdoc `MdocHash`의 digest-멤버십이 개념 동일 |
-| **구조적 disclosure 동등** (가변 salt) | 🆕 | jwt.h `assert_string_eq` 확장 |
-| **exp 정수 파싱 + 비교** | 🆕 | digit→값 누적(×10) + `vlt` |
+| ECDSA verify3 (×2) | ✅ | `circuits/ecdsa/verify_circuit.h` (used by jwt.h) |
+| FlatSHA256 (header.payload, and disclosure hash) | ✅ | `circuits/sha/flatsha256_circuit.h` |
+| base64url decode | ✅ | `circuits/tests/base64/decode.h` (used by jwt.h) |
+| Routing/shift (align by index) | ✅ | `circuits/logic/routing.h` |
+| Byte equality/`vlt`/`assert_implies` | ✅ | `circuits/logic/logic.h` |
+| **`_sd` membership** (SHA==base64decode(entry)) | 🆕 | conceptually identical to mdoc `MdocHash`'s digest-membership |
+| **Structural disclosure equality** (variable salt) | 🆕 | extension of jwt.h `assert_string_eq` |
+| **exp integer parsing + comparison** | 🆕 | digit→value accumulation (×10) + `vlt` |
 
-## Witness (prover 제공) 핵심
+## Witness (prover-supplied) Essentials
 
-- payload 위치/길이 (preimage 내)
-- 요청 disclosure마다: disclosure 바이트, salt 길이, `_sd` 내 매칭 항목의 인덱스,
-  disclosure를 base64-디코드한 평문 내 name/value 오프셋
-- exp 숫자의 위치/자릿수
+- payload position/length (within the preimage)
+- per requested disclosure: disclosure bytes, salt length, index of the matching entry within `_sd`,
+  name/value offsets within the plaintext obtained by base64-decoding the disclosure
+- position/digit count of the exp number
 
-## 마일스톤 (점진·검증가능)
+## Milestones (incremental, verifiable)
 
-- **M1 ✅**: 실제 SD-JWT-VC 발급기 + 의존성 없는 레퍼런스 검증기 + 설계.
+- **M1 ✅**: real SD-JWT-VC issuer + dependency-free reference verifier + design.
   `tools/gen-sdjwt.mjs`, `src/decode-sdjwt.js`, `fixtures/`.
-- **M2 ✅** (eval): exp 비교 서브회로 + EvaluationBackend 하니스. `native/sdjwt_eval.cc`.
-- **M4-core ✅** (eval): SHA(disclosure) in-circuit + `_sd` 멤버십(base64 디코드+비교),
-  정상 accept/위조 reject.
-- **4a ✅** (eval): disclosure 구조 추출 `["salt","name",value]` (가변 salt) — 문자열/불리언/숫자.
-- **4b ✅** (eval): **실제 fixture 통합** — payload에서 exp·`_sd` 엔트리 인덱스 탐색 후
-  exp+멤버십+구조추출 end-to-end PASS (불리언 포함). `pnpm run eval:sdjwt`.
-- **M3 ✅** (실제 ZK): exp(M3a) + `_sd` 멤버십(M3b) + 구조 추출(M3c)을 CompilerBackend로
-  컴파일 → ZkProver/ZkVerifier로 prove/verify ACCEPT (~1.4s, proof ~239KB). `native/sdjwt_zk.cc`.
-  불리언 `age_over_18:true`까지 ZK 동작. (SHA witness를 회로 입력으로 선언/충전.)
-- **M5 ✅** (실제 ZK, full): 발급자 ES256 서명(VerifyWitness3 직접) + header.payload SHA +
-  payload base64 디코드 + exp + `_sd` 멤버십 + 구조 추출을 **하나의 회로**로 컴파일,
-  실제 SD-JWT-VC fixture에서 ZK prove/verify. `native/sdjwt_full.cc`, `pnpm run demo:sdjwt-zk`.
-  - 증명: "발급자 서명 유효 + 만료 안 됨 + age_over_18 ∈ _sd = **true(불리언)**" (서명·다른
-    클레임·salt 비공개). ACCEPT (proof ~408KB, ninputs ~31k, ~10s). 만료 시 REJECT.
-  - **갓 발급한 새 토큰에서도 동작** → witness 빌더가 임의 실제 토큰을 파싱.
-  - KB(홀더 바인딩)는 제외(이미 jwt_cli에서 동작; 추가는 기계적). cnf 포맷 의존 회피 위해
-    JWTWitness 대신 VerifyWitness3 직접 사용.
-- **M6a ✅** (실제 ZK): **다속성 동시공개** — NATTR(=3) disclosure 슬롯, (name,value)를
-  공개 입력 패턴으로. given_name(문자열)+age_over_18(불리언)+height(숫자)를 한 ZK proof로.
-- **M6b ✅** (실제 ZK): **Key Binding** — 홀더 KB 서명 검증 + dpk를 payload의 cnf.jwk에
-  바인딩(cnf.x/y를 회로 내 base64 디코드해 dpk 비트와 비교). e2는 공개 입력.
-  발급기(gen-sdjwt)가 kbjwt 생성. `pnpm run demo:sdjwt-zk`.
-  → 한 ZK proof에 **발급자 서명 + KB + exp + 3속성 멤버십** 전부 ACCEPT(~461KB, ~13s), 만료 REJECT.
-- **M6c ✅** (실제 ZK): **sd_hash 바인딩 (정석/in-circuit)** — KB가 서명한 `sd_hash`가
-  실제 제시 묶음과 일치함을 회로가 검증. 체인: KB서명→e2→kb_pre(SHA==e2)→payload에서
-  sd_hash 추출→`SHA(presented)==sd_hash`→공개 disclosure들이 presented에 포함.
-  → "공개한 disclosure ⊆ 홀더가 서명한 제시 묶음" 강제. ACCEPT(proof ~572KB, ~27s), 만료 REJECT.
-- **M6d ✅** (실제 ZK): mdoc 대비 갭 마감.
-  - **vct 검증**: payload의 `"vct":"<type>"`를 공개 입력 패턴과 대조 (잘못된 vct → REJECT 확인).
-  - **다속성 N 가변**: NATTR을 런타임 파라미터로(벡터). 2·3·4속성 모두 동작. claims는 argv로 지정.
-  - **회로 캐싱**: CircuitWriter/Reader로 컴파일된 회로를 N별 zstd 압축 캐시
-    (`circuits-cache/sdjwt-<N>attr.bin`, 145MB→~3MB). 재실행 시 **컴파일 ~23s → 로드 ~0.4s**.
-- **M7 ✅** (2체 분리 + MAC, mdoc 아키텍처): monolithic 단일 Fp256 회로를 mdoc처럼
-  **두 회로로 분리**해 성능 확보. SHA/CBOR-유사 해시 작업은 이진체 GF(2¹²⁸)가 소수체
-  Fp256보다 ~5배 저렴(`native/sha_bench.cc`로 측정: 18블록 1181KB→236KB, prove 1412→283ms).
-  - **M7-1 ✅** 서명 회로(Fp256): `MdocSignature` 재사용 — 발급자 ES256 + 홀더 KB ES256 +
-    e/dpkx/dpky의 MAC. `native/sdjwt_sig.cc` (ninputs 3739, prove ~200ms).
-  - **M7-2 ✅** 해시 회로(GF2¹²⁸): SHA + exp + vct + cnf + sd_hash 바인딩 +
-    N×(`_sd` 멤버십 + 구조 + consent) 전체를 GF(2¹²⁸)로 포팅. `native/sdjwt_hash.cc`
-    (3속성 ninputs 86723, prove ~720ms). nattr별 zstd 캐시(99MB→948KB).
-  - **M7-3 ✅** 오케스트레이션(`native/sdjwt_split.cc`): 두 회로를 **MAC로 건전하게 결속**.
-    공유 트랜스크립트에 양쪽 commit → `a_v`를 commit 이후 트랜스크립트에서 유도 →
-    공통값(e/dpkx/dpky) macs 계산 → 커밋된 공개입력 슬롯에 기입 → 양쪽 prove/verify.
-    witness(a_p)가 a_v 독립이라 commit 후 a_v 공개가 안전, 증명자가 a_v를 못 골라
-    두 회로에 다른 e를 못 넣음(Schwartz-Zippel). e2는 양 회로 공개입력.
-    번들 `[6 macs][hash proof][sig proof]`. **변조 테스트**(`TAMPER=1`): mac 1비트 변조 시
-    양 회로 모두 REJECT 확인. 3속성 **prove(both) ~0.95s, 번들 353KB, ACCEPT**.
-  - **비교**: monolithic(`sdjwt_full`) end-to-end ~6.6s vs split ~1.7s(≈4배), prove만 ~6배.
-    회로 캐시 145MB→3MB(mono) vs 164KB+948KB(split).
-- **M8 ✅** (실사용 견고화): 회로 상수를 mdoc 수준으로 **넉넉히** + **초과 시 명확한 에러**.
-  - 상수 상향: kMaxSHA 13→32(payload 2KB), KBB 4→6, PB 18→40(presented 2.5KB),
-    MAXB 2→4(disclosure 256B), MAXPAT 96→160, MAXVCT 80→128, LOGM 11→12.
-    세 바이너리(split/hash/full) 동일 적용. 캐시 파일명에 geometry 태그로 자동 무효화.
-  - `check_capacity()`: header.payload/KB/presented SHA블록, decoded payload, presented<2^LOGM,
-    vct·disclosure 패턴 길이를 호스트에서 검사 → 버퍼 오버플로 대신 구체적 에러(exit 2).
-    (mdoc의 `MDOC_PROVER_TAGGED_MSO_TOO_BIG`에 해당.)
-  - **큰 fixture 검증**: `BIG=1` 발급(13속성 PID급, header.payload 20블록·presented 35블록 —
-    **옛 상수면 초과**)을 split으로 ACCEPT. `demo:sdjwt-split` [5]단계로 시연.
-  - 비용: split 3속성 prove ~0.95s→~1.6s(여전히 monolithic↓), monolithic은 ~13s(회로 318MB,
-    RAM 6.4GB) → 분리 이점 ~8배로 더 부각.
-- **M9 (남음/선택)**: W3C VC, 공개 API/Node 바인딩화, 단일 번들 직렬화/역직렬화 정리,
-  크기 티어(여러 프로파일 자동 선택), status/revocation·type metadata·alg 유연성.
+- **M2 ✅** (eval): exp comparison subcircuit + EvaluationBackend harness. `native/sdjwt_eval.cc`.
+- **M4-core ✅** (eval): SHA(disclosure) in-circuit + `_sd` membership (base64 decode+compare),
+  legitimate accept/forged reject.
+- **4a ✅** (eval): disclosure structural extraction `["salt","name",value]` (variable salt) — string/boolean/number.
+- **4b ✅** (eval): **real fixture integration** — after locating the exp·`_sd` entry indices in the payload,
+  exp+membership+structural extraction end-to-end PASS (including boolean). `pnpm run eval:sdjwt`.
+- **M3 ✅** (real ZK): compile exp(M3a) + `_sd` membership(M3b) + structural extraction(M3c) with CompilerBackend
+  → prove/verify ACCEPT with ZkProver/ZkVerifier (~1.4s, proof ~239KB). `native/sdjwt_zk.cc`.
+  ZK works up to boolean `age_over_18:true`. (SHA witness declared/loaded as a circuit input.)
+- **M5 ✅** (real ZK, full): compile issuer ES256 signature (VerifyWitness3 directly) + header.payload SHA +
+  payload base64 decode + exp + `_sd` membership + structural extraction into **a single circuit**,
+  ZK prove/verify on a real SD-JWT-VC fixture. `native/sdjwt_full.cc`, `pnpm run demo:sdjwt-zk`.
+  - Proof: "issuer signature valid + not expired + age_over_18 ∈ _sd = **true (boolean)**" (signature·other
+    claims·salt hidden). ACCEPT (proof ~408KB, ninputs ~31k, ~10s). REJECT when expired.
+  - **Works even on a freshly issued new token** → the witness builder parses arbitrary real tokens.
+  - KB (holder binding) is excluded (already working in jwt_cli; adding it is mechanical). To avoid dependence on the cnf format,
+    VerifyWitness3 is used directly instead of JWTWitness.
+- **M6a ✅** (real ZK): **simultaneous disclosure of multiple attributes** — NATTR(=3) disclosure slots, with (name,value) as
+  a public input pattern. given_name(string)+age_over_18(boolean)+height(number) in one ZK proof.
+- **M6b ✅** (real ZK): **Key Binding** — verify holder KB signature + bind dpk to the payload's cnf.jwk
+  (base64-decode cnf.x/y in-circuit and compare against dpk bits). e2 is a public input.
+  The issuer (gen-sdjwt) produces kbjwt. `pnpm run demo:sdjwt-zk`.
+  → in one ZK proof, **issuer signature + KB + exp + 3-attribute membership** all ACCEPT (~461KB, ~13s), REJECT when expired.
+- **M6c ✅** (real ZK): **sd_hash binding (canonical/in-circuit)** — the circuit verifies that the `sd_hash` signed by KB
+  matches the actual presentation bundle. Chain: KB signature→e2→kb_pre(SHA==e2)→extract
+  sd_hash from payload→`SHA(presented)==sd_hash`→the disclosed disclosures are contained in presented.
+  → enforces "disclosed disclosure ⊆ presentation bundle signed by the holder". ACCEPT (proof ~572KB, ~27s), REJECT when expired.
+- **M6d ✅** (real ZK): closing the gap relative to mdoc.
+  - **vct verification**: compare the payload's `"vct":"<type>"` against a public input pattern (confirmed REJECT on wrong vct).
+  - **variable multi-attribute N**: NATTR as a runtime parameter (vector). Works for 2·3·4 attributes. claims specified via argv.
+  - **circuit caching**: zstd-compressed cache of the compiled circuit per N via CircuitWriter/Reader
+    (`circuits-cache/sdjwt-<N>attr.bin`, 145MB→~3MB). On rerun, **compile ~23s → load ~0.4s**.
+- **M7 ✅** (2-body split + MAC, mdoc architecture): split the monolithic single Fp256 circuit
+  into **two circuits** like mdoc to gain performance. SHA/CBOR-like hash operations are ~5x cheaper on the binary field GF(2¹²⁸)
+  than on the prime field Fp256 (measured with `native/sha_bench.cc`: 18 blocks 1181KB→236KB, prove 1412→283ms).
+  - **M7-1 ✅** signature circuit (Fp256): reuse `MdocSignature` — issuer ES256 + holder KB ES256 +
+    MAC of e/dpkx/dpky. `native/sdjwt_sig.cc` (ninputs 3739, prove ~200ms).
+  - **M7-2 ✅** hash circuit (GF2¹²⁸): port SHA + exp + vct + cnf + sd_hash binding +
+    N×(`_sd` membership + structural + consent) in full to GF(2¹²⁸). `native/sdjwt_hash.cc`
+    (3-attribute ninputs 86723, prove ~720ms). zstd cache per nattr (99MB→948KB).
+  - **M7-3 ✅** orchestration (`native/sdjwt_split.cc`): **soundly bind the two circuits via MAC**.
+    Commit both sides into a shared transcript → derive `a_v` from the post-commit transcript →
+    compute macs of common values (e/dpkx/dpky) → write into the committed public-input slots → prove/verify both sides.
+    Because the witness (a_p) is independent of a_v, revealing a_v after commit is safe; the prover cannot pick a_v
+    and so cannot feed different e into the two circuits (Schwartz-Zippel). e2 is a public input of both circuits.
+    Bundle `[6 macs][hash proof][sig proof]`. **Tampering test** (`TAMPER=1`): when 1 bit of a mac is altered,
+    both circuits confirmed REJECT. 3 attributes **prove(both) ~0.95s, bundle 353KB, ACCEPT**.
+  - **Comparison**: monolithic (`sdjwt_full`) end-to-end ~6.6s vs split ~1.7s (≈4x), prove alone ~6x.
+    Circuit cache 145MB→3MB (mono) vs 164KB+948KB (split).
+- **M8 ✅** (production hardening): raise circuit constants to mdoc level **generously** + **a clear error on overflow**.
+  - Constant increases: kMaxSHA 13→32 (payload 2KB), KBB 4→6, PB 18→40 (presented 2.5KB),
+    MAXB 2→4 (disclosure 256B), MAXPAT 96→160, MAXVCT 80→128, LOGM 11→12.
+    Applied identically to the three binaries (split/hash/full). Auto-invalidation via a geometry tag in the cache filename.
+  - `check_capacity()`: validate header.payload/KB/presented SHA blocks, decoded payload, presented<2^LOGM,
+    vct·disclosure pattern lengths on the host → a concrete error (exit 2) instead of a buffer overflow.
+    (Corresponds to mdoc's `MDOC_PROVER_TAGGED_MSO_TOO_BIG`.)
+  - **Large fixture verification**: issuing with `BIG=1` (13-attribute PID-grade, header.payload 20 blocks·presented 35 blocks —
+    **would overflow under the old constants**) ACCEPTed via split. Demonstrated in step [5] of `demo:sdjwt-split`.
+  - Cost: split 3-attribute prove ~0.95s→~1.6s (still ↓ monolithic), monolithic is ~13s (circuit 318MB,
+    RAM 6.4GB) → the split advantage stands out even more, ~8x.
+- **M9 (remaining/optional)**: W3C VC, public API/Node bindings, tidying single-bundle serialization/deserialization,
+  size tiers (auto-select among multiple profiles), status/revocation·type metadata·alg flexibility.
 
-> 현재 상태: **mdoc 패리티 이상 + mdoc과 동일한 2체+MAC 아키텍처까지 달성** — SD-JWT-VC
-> 선택공개 ZK가 실제 토큰에서 end-to-end 동작. 모든 값 타입(불리언/숫자/날짜) + 유효기간(exp)
-> + Key Binding + **sd_hash 바인딩** + 다속성 동시공개를 파싱 없이 `_sd` 멤버십으로, 그리고
-> 이를 **Fp256 서명 회로 + GF(2¹²⁸) 해시 회로로 분리해 MAC로 건전하게 결속**(prove ~4–6배 단축).
+> Current status: **achieved beyond mdoc parity + the same 2-body+MAC architecture as mdoc** — SD-JWT-VC
+> selective-disclosure ZK works end-to-end on real tokens. All value types (boolean/number/date) + validity period (exp)
+> + Key Binding + **sd_hash binding** + simultaneous multi-attribute disclosure via `_sd` membership without parsing, and
+> **split into an Fp256 signature circuit + a GF(2¹²⁸) hash circuit, soundly bound via MAC** (prove ~4–6x faster).
 
-## 리스크 / 공수
+## Risks / Effort
 
-- 가장 무거운 작업(수일~수주). 회로 DSL·soundness 검토 필요.
-- 위험 지점: (a) base64 길이/정렬 경계, (b) 가변 salt 길이 처리, (c) exp 자릿수 경계,
-  (d) disclosure SHA의 블록 수(길이) → 회로 크기.
-- 완화: mdoc/jwt 기존 회로를 참조틀로, M2(평문 witness+eval)로 ZK 전에 로직 검증.
+- The heaviest task (days to weeks). Requires circuit DSL · soundness review.
+- Risk points: (a) base64 length/alignment boundaries, (b) variable salt length handling, (c) exp digit-count boundaries,
+  (d) block count (length) of the disclosure SHA → circuit size.
+- Mitigation: use the existing mdoc/jwt circuits as a reference frame, validate the logic before ZK with M2 (plaintext witness+eval).
 
-## 열린 결정
+## Open Decisions
 
-- KB의 `e2`(KB 메시지 해시) 산출 방식: 현재 longfellow처럼 외부 제공 vs 회로 내 계산.
-- disclosure 최대 길이/개수 상한(회로 크기와 직결).
-- `_sd` 항목 개수 상한(멤버십 탐색 범위).
+- How KB's `e2` (KB message hash) is computed: externally provided as in current longfellow vs computed in-circuit.
+- Upper bound on the disclosure max length/count (directly tied to circuit size).
+- Upper bound on the number of `_sd` entries (membership search range).

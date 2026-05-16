@@ -1,273 +1,273 @@
-# Longfellow-ZK 소스코드 분석 보고서
+# Longfellow-ZK Source Code Analysis Report
 
-> 분석 대상: `google/longfellow-zk` (커밋 `c849531`, 2026-05-23 기준 main)
-> 분석 위치: `/home/unknown/longfellow/longfellow-zk`
-> 작성일: 2026-05-23
-
----
-
-## 1. 한눈에 보는 요약 (TL;DR)
-
-**Longfellow**는 구글이 공개한, **기존 신원 표준(ISO mdoc/mDL, JWT, W3C VC)을 바꾸지 않고도 영지식증명(ZK)을 입히기 위한 C++ 라이브러리**다. 핵심 난제는 "이미 전 세계에 배포된 **ECDSA 서명**된 자격증명을, 서명을 노출하지 않고 ZK로 증명하는 것"이며, 이를 위해 두 개의 검증된 빌딩블록을 조합한다.
-
-- **Sumcheck 프로토콜**(영지식 변형) — 산술회로 `C(x,w)=0` 의 올바른 계산을 증명하는 대화형 증명(IP)
-- **Ligero 논증 시스템** — 신뢰 셋업(trusted setup)이 필요 없고, 충돌저항 해시(SHA-256)만 가정하는 커밋먼트 + ZK 논증
-
-전체 시스템은 **신뢰 셋업이 없고**, **충돌저항 해시 외의 복잡한 가정이 없으며**, ECDSA 증명 ~60ms / mdoc 전체 제시 플로우 ~1.2초(모바일) 성능을 목표로 한다.
-
-- 이름 유래: 구글 케임브리지 오피스 앞 **Longfellow Bridge**
-- 논문: [Anonymous credentials from ECDSA (ePrint 2024/2010)](https://eprint.iacr.org/2024/2010), Matteo Frigo & abhi shelat (Google)
-- 표준화: [IETF draft-google-cfrg-libzk](https://datatracker.ietf.org/doc/draft-google-cfrg-libzk/)
+> Analyzed target: `google/longfellow-zk` (commit `c849531`, main as of 2026-05-23)
+> Location: `/home/unknown/longfellow/longfellow-zk`
+> Date: 2026-05-23
 
 ---
 
-## 2. 해결하려는 문제
+## 1. At-a-Glance Summary (TL;DR)
 
-기존 익명 자격증명(anonymous credential) 스킴(BBS+, CL 서명 등)은 **새로운 암호 가정과 새로운 서명 방식**을 요구한다. 즉, 발급자(정부·기관) 인프라를 전부 바꿔야 한다. 현실의 모바일 운전면허증(mDL), 전자여권 등은 거의 모두 **ECDSA(P-256)** 로 서명되어 있으므로, 이 레거시를 그대로 둔 채 프라이버시를 추가하는 것이 관건이다.
+**Longfellow** is a C++ library released by Google **for applying zero-knowledge proofs (ZK) to credentials without changing existing identity standards (ISO mdoc/mDL, JWT, W3C VC)**. The core challenge is "proving in ZK an **ECDSA-signed** credential that is already deployed worldwide, without revealing the signature," and to address it the library combines two well-vetted building blocks.
 
-Longfellow의 접근: **"ECDSA 서명 검증 알고리즘 자체"를 산술회로로 표현**하고, "나는 이 공개키로 검증되는 유효한 서명을 알고 있고, 그 안의 특정 속성(예: age≥18)이 성립한다"는 것을 ZK로 증명한다. 검증자는 서명·이름·생년월일을 보지 못하고 **"증명이 통과했다"** 는 사실만 얻는다. 또한 매번 새로운 증명이 생성되어 추적(linkability)도 방지된다.
+- **Sumcheck protocol** (zero-knowledge variant) — an interactive proof (IP) that proves the correct computation of an arithmetic circuit `C(x,w)=0`
+- **Ligero argument system** — a commitment + ZK argument that requires no trusted setup and assumes only a collision-resistant hash (SHA-256)
+
+The entire system has **no trusted setup**, has **no complex assumptions beyond a collision-resistant hash**, and targets performance of ~60ms for an ECDSA proof / ~1.2s for the full mdoc presentation flow (mobile).
+
+- Name origin: the **Longfellow Bridge** in front of Google's Cambridge office
+- Paper: [Anonymous credentials from ECDSA (ePrint 2024/2010)](https://eprint.iacr.org/2024/2010), Matteo Frigo & abhi shelat (Google)
+- Standardization: [IETF draft-google-cfrg-libzk](https://datatracker.ietf.org/doc/draft-google-cfrg-libzk/)
 
 ---
 
-## 3. 전체 아키텍처
+## 2. The Problem Being Solved
 
-### 3.1 5단계 프로토콜 (개념)
+Existing anonymous credential schemes (BBS+, CL signatures, etc.) require **new cryptographic assumptions and new signature schemes**. That is, the entire issuer (government/institution) infrastructure must be replaced. Real-world mobile driver's licenses (mDL), e-passports, etc. are almost all signed with **ECDSA (P-256)**, so the key is to add privacy while leaving this legacy intact.
 
-`docs/specs/libzk.md:328` 의 Overview 절이 전체 흐름을 정의한다.
+Longfellow's approach: **express "the ECDSA signature verification algorithm itself" as an arithmetic circuit**, and prove in ZK that "I know a valid signature that verifies under this public key, and a specific attribute within it (e.g., age≥18) holds." The verifier does not see the signature, name, or date of birth and only obtains the fact that **"the proof passed."** Furthermore, a new proof is generated each time, which also prevents tracking (linkability).
 
-1. **커밋**: 프루버가 모든 witness 값(= 사적 입력 + 일회용 패드)에 커밋한다.
-2. **암호화된 sumcheck**: 프루버가 witness로 sumcheck를 실행하되, 결과 다항식/클레임을 **일회용 패드로 한 원소씩 빼서(암호화)** 검증자에게 보낸다. 검증자는 패드를 모르므로 직접 검증 불가.
-3. **제약 생성**: 프루버·검증자 양쪽이 공개 입력 + 암호화된 증명으로부터 **선형/이차 제약(linear/quadratic constraints)** 들을 만든다. "이 제약들이 만족되면 sumcheck 검증자가 accept했을 것"이라는 형태.
-4. **Ligero 증명**: 프루버가 커밋먼트와 witness로 3단계 제약이 만족됨을 증명한다.
-5. **검증**: 검증자가 4단계 증명 + 3단계 제약으로 최종 검증한다.
+---
 
-> 2~3단계를 "sumcheck", 4~5단계를 "commitment scheme"이라 부른다. 커밋먼트는 Ligero 대신 다른 것으로 교체 가능하도록 모듈화되어 있다.
+## 3. Overall Architecture
 
-이 설계의 핵심 통찰(`lib/zk/zk_prover.h:38`):
-> sumcheck **검증자**는 본질적으로 "degree-2/3 다항식의 평가 확인 + 레이어당 곱셈 1회"만 하므로, 이 단순한 검증 로직을 Ligero가 증명하는 제약으로 환원할 수 있다. (Hyrax 논문의 관찰과 유사하나, Hyrax는 타원곡선 기반, 여기서는 Ligero 사용.)
+### 3.1 5-Stage Protocol (Concept)
 
-### 3.2 디렉토리 구조 (`lib/`)
+The Overview section at `docs/specs/libzk.md:328` defines the full flow.
 
-| 디렉토리 | 역할 |
+1. **Commit**: the prover commits to all witness values (= private inputs + one-time pads).
+2. **Encrypted sumcheck**: the prover runs sumcheck on the witness, but sends the resulting polynomials/claims to the verifier **with one-time pads subtracted element by element (encryption)**. The verifier cannot verify directly because it does not know the pads.
+3. **Constraint generation**: both prover and verifier construct **linear/quadratic constraints** from the public inputs + encrypted proof. The form is "if these constraints are satisfied, the sumcheck verifier would have accepted."
+4. **Ligero proof**: the prover proves with the commitment and witness that the stage-3 constraints are satisfied.
+5. **Verification**: the verifier performs final verification with the stage-4 proof + stage-3 constraints.
+
+> Stages 2-3 are called "sumcheck," and stages 4-5 are called the "commitment scheme." The commitment is modularized so that something other than Ligero can be swapped in.
+
+The core insight of this design (`lib/zk/zk_prover.h:38`):
+> The sumcheck **verifier** essentially only does "checking the evaluation of a degree-2/3 polynomial + one multiplication per layer," so this simple verification logic can be reduced to constraints that Ligero proves. (Similar to the observation in the Hyrax paper, but Hyrax is elliptic-curve based, whereas here Ligero is used.)
+
+### 3.2 Directory Structure (`lib/`)
+
+| Directory | Role |
 |---|---|
-| `algebra/` | 유한체 산술 — `Fp256`(P-256 base field), `f_128`=GF(2^128), FFT/NTT, CRT, 보간, convolution |
-| `gf2k/` | GF(2^128) 전용 구현 (additive FFT 기반 extend) |
-| `ec/` | 타원곡선 — `p256.h`, `p256k1.h` (P-256, secp256k1) |
-| `sumcheck/` | 레이어드 회로 sumcheck 프루버/검증자, quad 표현 |
-| `ligero/` | Ligero 커밋·증명·검증, 파라미터 |
-| `merkle/` | Ligero 커밋먼트의 머클트리 (배치 inclusion proof) |
-| `zk/` | 위 둘을 묶는 상위 ZK 래퍼 (`ZkProver`, `ZkVerifier`, `ZkProof`) |
-| `circuits/` | 회로 빌딩블록 (ECDSA, SHA-256, CBOR, MAC, mdoc, 컴파일러, logic) |
-| `random/` | Fiat-Shamir transcript(랜덤 오라클), 보안 RNG |
-| `arrays/` | `Dense`/`DenseFiller` 등 witness 컨테이너 |
-| `cbor/`, `proto/`, `util/` | CBOR 직렬화, proto, 로깅·패닉 유틸 |
+| `algebra/` | Finite field arithmetic — `Fp256` (P-256 base field), `f_128`=GF(2^128), FFT/NTT, CRT, interpolation, convolution |
+| `gf2k/` | GF(2^128)-specific implementation (extend based on additive FFT) |
+| `ec/` | Elliptic curves — `p256.h`, `p256k1.h` (P-256, secp256k1) |
+| `sumcheck/` | Layered circuit sumcheck prover/verifier, quad representation |
+| `ligero/` | Ligero commit/prove/verify, parameters |
+| `merkle/` | Merkle tree for the Ligero commitment (batched inclusion proof) |
+| `zk/` | Higher-level ZK wrapper that ties the above two together (`ZkProver`, `ZkVerifier`, `ZkProof`) |
+| `circuits/` | Circuit building blocks (ECDSA, SHA-256, CBOR, MAC, mdoc, compiler, logic) |
+| `random/` | Fiat-Shamir transcript (random oracle), secure RNG |
+| `arrays/` | Witness containers such as `Dense`/`DenseFiller` |
+| `cbor/`, `proto/`, `util/` | CBOR serialization, proto, logging/panic utilities |
 
 ---
 
-## 4. 핵심 동작 원리 (암호 계층)
+## 4. Core Operating Principles (Cryptographic Layer)
 
-### 4.1 Sumcheck (영지식 변형) — `docs/specs/sumcheck.md`, `lib/sumcheck/`
+### 4.1 Sumcheck (Zero-Knowledge Variant) — `docs/specs/sumcheck.md`, `lib/sumcheck/`
 
-**레이어드 회로 모델**: 회로는 `NL`개 레이어로 구성되고, 레이어 `j`는 입력 와이어 `V[j+1]`로부터 출력 와이어 `V[j]`를 계산한다. `V[0]`이 최종 출력이며, **모든 출력 와이어가 0이면 정리(theorem)가 참**으로 간주된다 (`sumcheck.md:124`).
+**Layered circuit model**: a circuit is composed of `NL` layers, and layer `j` computes the output wires `V[j]` from the input wires `V[j+1]`. `V[0]` is the final output, and **if all output wires are 0, the theorem is considered true** (`sumcheck.md:124`).
 
-각 레이어의 계산은 **quad**(3차원 희소배열)로 표현된다:
+The computation of each layer is represented by a **quad** (3-dimensional sparse array):
 ```
 V[j][g] = Σ_{l,r} Q[j][g,l,r] · V[j+1][l] · V[j+1][r]
 ```
-즉 모든 게이트가 "입력 와이어 두 개의 곱들에 상수를 곱해 더한" 형태 (`sumcheck.md:130`).
+That is, every gate has the form "products of two input wires multiplied by a constant and summed" (`sumcheck.md:130`).
 
-**In-circuit assertion 최적화** (`sumcheck.md:149`): 출력=0 검사를 출력 레이어까지 복사하면 오버헤드가 크므로, 레이어마다 `Q`(일반 계산)와 `Z`(0이어야 하는 이차식) 두 quad를 두고, 랜덤 `beta`로 `QZ = Q + beta·Z` 결합해 한 번에 검사한다. 두 quad는 disjoint하고 `Z`는 binary라서 `(g,l,r,v)` 4-튜플 하나로 압축 표현 가능(`v=0`이면 Z, `v≠0`이면 Q).
+**In-circuit assertion optimization** (`sumcheck.md:149`): copying the output=0 check up to the output layer incurs large overhead, so for each layer there are two quads, `Q` (general computation) and `Z` (a quadratic that must be 0), combined with a random `beta` as `QZ = Q + beta·Z` to check them at once. The two quads are disjoint and `Z` is binary, so they can be compactly represented as a single `(g,l,r,v)` 4-tuple (`v=0` means Z, `v≠0` means Q).
 
-**암호화/지연검증** (`sumcheck.md:224`): sumcheck가 만드는 다항식·클레임을 검증자에게 평문으로 주지 않고, **일회용 패드를 빼서** 보낸다. 검증자는 직접 검증하는 대신, 사적 입력·패드 값에 대한 **선형/이차 제약**으로 변환해 Ligero로 지연 검증한다.
+**Encryption/deferred verification** (`sumcheck.md:224`): the polynomials/claims produced by sumcheck are not given to the verifier in plaintext; instead, they are sent **with one-time pads subtracted**. Rather than verifying directly, the verifier converts them into **linear/quadratic constraints** over the private inputs and pad values and defers verification to Ligero.
 
-**다항식 표현 최적화** (`sumcheck.md:198`): 모든 라운드 다항식은 **차수 2**이며, 세 점 `P0=0, P1=1, P2`의 평가로 표현한다. `p(P0)+p(P1)=직전 클레임`이라는 항등식 때문에 **`p(P0)`와 `p(P2)`만 전송**하고 `p(P1)`은 재구성한다. → 코드에서 `fill_pad`가 `k!=1`일 때만 패드를 생성하는 "P(1) optimization"으로 나타난다 (`lib/zk/zk_prover.h:156`, `:168`).
+**Polynomial representation optimization** (`sumcheck.md:198`): every round polynomial is **degree 2** and is represented by the evaluations at the three points `P0=0, P1=1, P2`. Because of the identity `p(P0)+p(P1)=the previous claim`, **only `p(P0)` and `p(P2)` are transmitted** and `p(P1)` is reconstructed. → In the code this appears as the "P(1) optimization" where `fill_pad` generates a pad only when `k!=1` (`lib/zk/zk_prover.h:156`, `:168`).
 
-> P2 선택: 표수>2 체에서는 `P2=2`, GF(2^128)에서는 `inj(2)` (`sumcheck.md:205`).
+> P2 selection: in fields of characteristic >2, `P2=2`; in GF(2^128), `inj(2)` (`sumcheck.md:205`).
 
-### 4.2 Ligero 커밋먼트 & 논증 — `docs/specs/ligero.md`, `lib/ligero/`
+### 4.2 Ligero Commitment & Argument — `docs/specs/ligero.md`, `lib/ligero/`
 
-Ligero[Ames-Hazay-Ishai-Venkitasubramaniam, ePrint 2022/1608]는 **신뢰 셋업 없는** sublinear 논증이다. Longfellow는 임의 회로 증명용이 아니라, **위 sumcheck 검증자가 만든 선형/이차 제약을 직접 증명**하는 용도로 사용한다.
+Ligero [Ames-Hazay-Ishai-Venkitasubramaniam, ePrint 2022/1608] is a sublinear argument **with no trusted setup**. Longfellow uses it not for proving arbitrary circuits but **to directly prove the linear/quadratic constraints produced by the sumcheck verifier above**.
 
-**커밋먼트 구조** (`ligero.md:180`):
-- witness 벡터 `W`를 **2D tableau 행렬 `T[NROW][NCOL]`** 로 배치한다. 각 행은 `[랜덤 패드 NREQ | witness값 WR | 다항식 평가 ...]`. 행에 랜덤 패드를 섞어 **영지식성**을 얻는다.
-- 처음 3행은 ZK용 랜덤 행(저차 테스트용, 선형 테스트용, 이차 테스트용).
-- 각 행에 Reed-Solomon `extend`(저차 인코딩)를 적용.
-- **머클트리는 행이 아니라 "열(column)"에 대해** 구성한다(`ligero.md:234`). 커밋먼트 = 머클루트.
+**Commitment structure** (`ligero.md:180`):
+- The witness vector `W` is laid out as a **2D tableau matrix `T[NROW][NCOL]`**. Each row is `[random pad NREQ | witness values WR | polynomial evaluations ...]`. Mixing random pads into the rows provides **zero-knowledge**.
+- The first 3 rows are random rows for ZK (for the low-degree test, for the linear test, for the quadratic test).
+- Reed-Solomon `extend` (low-degree encoding) is applied to each row.
+- **The Merkle tree is built over the "columns," not the rows** (`ligero.md:234`). The commitment = the Merkle root.
 
-**서브필드 최적화** (`ligero.md:220`): 한 행의 witness가 모두 서브필드(GF(2^16))에 속하면 랜덤도 서브필드에서 뽑아 직렬화 크기를 16비트로 줄인다. → `ZkProver::commit`의 `subfield_boundary` 처리(`lib/zk/zk_prover.h:85`).
+**Subfield optimization** (`ligero.md:220`): if a row's witness all lies in a subfield (GF(2^16)), the randomness is also drawn from the subfield to reduce the serialization size to 16 bits. → The `subfield_boundary` handling in `ZkProver::commit` (`lib/zk/zk_prover.h:85`).
 
-**증명 3종** (`ligero.md:314`):
-1. **저차 테스트(low-degree test)**: 검증자 챌린지 `u`로 행들의 선형결합을 받아 RS 코드워드인지 확인.
-2. **선형 제약 테스트(dot proof)**: `A·W = b` 형태를, 랜덤결합 `alpha_l`로 한 방에 확인.
-3. **이차 제약 테스트(quadratic proof)**: `W[x]·W[y]=W[z]` 제약들을, witness를 복사한 `Qx,Qy,Qz` 행으로 만들어 "복사가 맞다"는 선형 제약 + "Qz=Qx⊗Qy"라는 곱 확인으로 환원.
+**Three kinds of proofs** (`ligero.md:314`):
+1. **Low-degree test**: take a linear combination of the rows using the verifier challenge `u` and confirm it is an RS codeword.
+2. **Linear constraint test (dot proof)**: confirm constraints of the form `A·W = b` all at once via a random combination `alpha_l`.
+3. **Quadratic constraint test (quadratic proof)**: reduce constraints `W[x]·W[y]=W[z]` by making `Qx,Qy,Qz` rows that copy the witness, into a linear constraint "the copy is correct" plus the product check "Qz=Qx⊗Qy".
 
-마지막에 검증자가 `NREQ`개 열을 무작위로 열어(open) 위 모든 메시지와의 정합성을 확인한다. **머클 inclusion proof는 배치 압축**(형제노드 중복 제거)으로 보낸다 (`ligero.md:46`).
+Finally, the verifier opens `NREQ` randomly chosen columns and confirms consistency with all the above messages. **The Merkle inclusion proofs are batch-compressed** (removing duplicate sibling nodes) before being sent (`ligero.md:46`).
 
-기본 파라미터(`lib/circuits/mdoc/mdoc_zk.h:33`):
-- v6 이하: `rate=4`, `NREQ=128` → 86비트+ 통계적 보안
-- v7 이상: `rate=7`, `NREQ=132` → ~109비트 통계적 보안
+Default parameters (`lib/circuits/mdoc/mdoc_zk.h:33`):
+- v6 and below: `rate=4`, `NREQ=128` → 86-bit+ statistical security
+- v7 and above: `rate=7`, `NREQ=132` → ~109-bit statistical security
 
-### 4.3 Fiat-Shamir (비대화화) — `docs/specs/libzk.md:136`, `lib/random/`
+### 4.3 Fiat-Shamir (Non-Interactivity) — `docs/specs/libzk.md:136`, `lib/random/`
 
-대화형 IP를 **단일 메시지**로 만들기 위해 Fiat-Shamir 변환을 쓴다. transcript 객체가 충돌저항 해시 `H`(SHA-256)로 프루버 메시지를 누적하고, 거기서 검증자 챌린지를 파생한다. 메시지마다 **타입·길이**를 함께 넣어 각 쿼리가 고유 transcript에 매핑되게 한다(`libzk.md:143`). 또한 랜덤 오라클의 회로 깊이/게이트 수를 대상 회로 `C`보다 크게 잡아 correlation-intractability 공격을 회피하는 베스트프랙티스를 따른다(`libzk.md:141`).
+To turn the interactive IP into a **single message**, the Fiat-Shamir transform is used. A transcript object accumulates prover messages with a collision-resistant hash `H` (SHA-256) and derives verifier challenges from it. Each message also includes its **type and length** so that each query maps to a unique transcript (`libzk.md:143`). It also follows the best practice of setting the random oracle's circuit depth/gate count larger than the target circuit `C` to avoid correlation-intractability attacks (`libzk.md:141`).
 
-### 4.4 유한체 & FFT — `lib/algebra/`, `lib/gf2k/`
+### 4.4 Finite Fields & FFT — `lib/algebra/`, `lib/gf2k/`
 
-- **`Fp256Base`**: P-256 base field (서명/ECDSA 회로용).
-- **`f_128` = GF(2^128)**: `GF(2)[x]/(x^128+x^7+x^2+x+1)`, `x`가 곱셈군 생성원 (해시/SHA 회로용). 서브필드 GF(2^16)로 직렬화 절감(`libzk.md:107`).
-- **extend (RS 인코딩)**: 소수체에서는 보간/NTT/Nussbaumer convolution; GF(2^k)에서는 **Lin et al.의 additive FFT**(novel polynomial basis)로 효율 구현 (`libzk.md:96`).
-- `f2_p256` + `FftExtConvolutionFactory`: P-256 위 RS 팩토리를 위한 확장체/FFT (`mdoc_zk.cc:474`).
-
----
-
-## 5. 회로 계층 (`lib/circuits/`)
-
-ZK가 실제로 증명하는 "정리"는 모두 산술회로다. Longfellow는 mdoc 검증에 필요한 모든 연산을 회로로 구현했다.
-
-### 5.1 회로 컴파일러 — `circuits/compiler/`
-고수준 산술 연산을 sumcheck 호환 **QuadCircuit**으로 컴파일한다(`compiler.h`의 `QuadCircuit`). 각 게이트는 `Σ(w_left·w_right·const)` 형태. 최적화: 상수 폴딩, 공통부분식 제거(CSE), 선형항 최적화, 레이어 깊이 최소화 스케줄링. 출력 메타로 `depth/nwires/nquad_terms` 등을 보고.
-
-### 5.2 논리·비트 연산 — `circuits/logic/`
-필드 위 비트/벡터 연산을 추상화(`logic.h`의 `Logic`). 핵심 타입:
-- `EltW`(필드원소 와이어), `BitW`(비트 와이어, `c0 + c1·x` 변환기저로 XOR 등을 효율화), `bitvec<N>`(= `v8/v32/v64/v128/v256`).
-- 연산: `add/sub/mul/axpy`, 비트논리 `land/lor/lxor/lnot`, 시프트/로테이트 `shl/shr/ror/rol`, 벡터 `vappend/vextract/veq/vlt`(범위검사).
-- `bit_plucker.h`(필드원소→비트 추출/패킹), `bit_adder.h`(mod 2^32 덧셈, SHA용), `counter.h`(CBOR 누적 스캔).
-
-### 5.3 ECDSA 검증 회로 — `circuits/ecdsa/`
-P-256 ECDSA 검증을 **3중 스칼라곱** 형태로 구현(`verify_circuit.h`의 `VerifyCircuit`, `verify_witness.h`의 `VerifyWitness3`). 검증식 `g·e + pk·r + R·(-s) = 항등원` 형태로 묶고:
-- **사전계산 테이블**: `{g, pk, R}`의 8가지 조합점을 미리 두고 스칼라 3비트씩으로 점 하나를 선택.
-- **중간점 witness 제공**: 각 반복 중간 결과를 witness로 줘 회로 깊이 축소.
-- **완전 덧셈 공식**(예외 없는 Weierstrass 덧셈).
-- `r,s ≠ 0` 및 `r,s < order` 범위 검사.
-
-### 5.4 SHA-256 회로 — `circuits/sha/`
-SHA-256을 "평탄화"한 산술회로(`flatsha256_circuit.h`의 `FlatSHA256Circuit`). 64라운드 전부를 회로로 펼치되, 메시지 스케줄 `W[16..63]`과 각 라운드 상태를 witness로 받아 검증. 라운드 함수(`T1,T2`, Ch/Maj/Σ)와 mod 2^32 덧셈(`BitAdder`)을 회로화. 비트 패킹으로 입력 크기↓(깊이↑) 트레이드오프.
-
-### 5.5 CBOR 파서 회로 — `circuits/cbor_parser/`, `cbor_parser_v2/`
-mdoc는 **CBOR**로 인코딩되므로, 회로 안에서 CBOR를 파싱해 "특정 속성이 어디 있는지/값이 무엇인지"를 입증한다. v1은 segmented scan(누적길이) 기반, **v2는 `UnaryPlucker` 기반으로 불필요한 스캔을 제거**해 효율 개선. 각 바이트 위치에서 헤더(타입·길이)를 해석하고 요소 경계를 추적한다.
-
-### 5.6 MAC 회로 — `circuits/mac/`
-GF(2^128) 위 256비트 메시지의 MAC을 검증(`mac_circuit.h`). 형식 `mac[i] = (a_p[i] + a_v)·x[i]`. `a_p`는 프루버가 커밋한 키, **`a_v`는 검증자 랜덤**. 위조 성공확률 ≤ 2^-128. 용도는 **두 회로(서명·해시)를 잇는 접착제**(아래 6장).
-
-### 5.7 mdoc 통합 회로 — `circuits/mdoc/`
-위 블록들을 묶어 mdoc 전체 검증을 회로화한다.
-- `mdoc_signature.h`: 발급자(MSO)·디바이스 ECDSA 서명 검증.
-- `mdoc_hash.h`: mdoc 해시 계산 + 요청 속성의 해시가 MSO의 attribute digest 맵에 존재하는지 확인. **age_over_18** 류 증명이 여기서 일어난다.
-- `mdoc_witness.h`(`ParsedMdoc`, `FullAttribute`): mdoc 파싱·witness 채우기.
-- `zk_spec.cc`: 지원 회로 버전 레지스트리(시스템명, 회로해시, 속성개수, rate/nreq 파라미터).
-- `circuit_maker.cc` / `mdoc_generate_circuit.cc`: 회로를 한 번 생성해 캐시(압축 바이트)로 저장 → 프루버/검증자가 재사용.
+- **`Fp256Base`**: P-256 base field (for signature/ECDSA circuits).
+- **`f_128` = GF(2^128)**: `GF(2)[x]/(x^128+x^7+x^2+x+1)`, with `x` as the multiplicative-group generator (for hash/SHA circuits). Serialization is reduced via the subfield GF(2^16) (`libzk.md:107`).
+- **extend (RS encoding)**: in prime fields, interpolation/NTT/Nussbaumer convolution; in GF(2^k), an efficient implementation using **Lin et al.'s additive FFT** (novel polynomial basis) (`libzk.md:96`).
+- `f2_p256` + `FftExtConvolutionFactory`: extension field/FFT for the RS factory over P-256 (`mdoc_zk.cc:474`).
 
 ---
 
-## 6. 핵심 설계: "두 개의 회로 + MAC 접착" (구현 분석)
+## 5. Circuit Layer (`lib/circuits/`)
 
-`lib/circuits/mdoc/mdoc_zk.cc`의 `run_mdoc_prover`(`:394`)/`run_mdoc_verifier`(`:538`)를 보면, **서로 다른 두 체 위에서 두 개의 독립 회로가 동시에 증명**되고 MAC으로 묶이는 것이 가장 중요한 아키텍처다.
+The "theorems" that ZK actually proves are all arithmetic circuits. Longfellow implements every operation needed for mdoc verification as a circuit.
 
-| | 서명 회로 (signature) | 해시 회로 (hash) |
+### 5.1 Circuit Compiler — `circuits/compiler/`
+Compiles high-level arithmetic operations into a sumcheck-compatible **QuadCircuit** (`QuadCircuit` in `compiler.h`). Each gate has the form `Σ(w_left·w_right·const)`. Optimizations: constant folding, common subexpression elimination (CSE), linear-term optimization, layer-depth-minimizing scheduling. Reports output metadata such as `depth/nwires/nquad_terms`.
+
+### 5.2 Logic / Bit Operations — `circuits/logic/`
+Abstracts bit/vector operations over the field (`Logic` in `logic.h`). Core types:
+- `EltW` (field-element wire), `BitW` (bit wire, using the `c0 + c1·x` change-of-basis to make XOR etc. efficient), `bitvec<N>` (= `v8/v32/v64/v128/v256`).
+- Operations: `add/sub/mul/axpy`, bit logic `land/lor/lxor/lnot`, shift/rotate `shl/shr/ror/rol`, vector `vappend/vextract/veq/vlt` (range check).
+- `bit_plucker.h` (field element → bit extraction/packing), `bit_adder.h` (mod 2^32 addition, for SHA), `counter.h` (CBOR cumulative scan).
+
+### 5.3 ECDSA Verification Circuit — `circuits/ecdsa/`
+Implements P-256 ECDSA verification in the form of a **triple scalar multiplication** (`VerifyCircuit` in `verify_circuit.h`, `VerifyWitness3` in `verify_witness.h`). It groups the verification equation into the form `g·e + pk·r + R·(-s) = identity`:
+- **Precomputed table**: the 8 combination points of `{g, pk, R}` are precomputed, and one point is selected using 3 bits of the scalar at a time.
+- **Intermediate-point witnesses provided**: each intermediate result of the loop is given as a witness to reduce circuit depth.
+- **Complete addition formula** (exception-free Weierstrass addition).
+- Range checks for `r,s ≠ 0` and `r,s < order`.
+
+### 5.4 SHA-256 Circuit — `circuits/sha/`
+A "flattened" arithmetic circuit of SHA-256 (`FlatSHA256Circuit` in `flatsha256_circuit.h`). All 64 rounds are unrolled into the circuit, but the message schedule `W[16..63]` and each round state are received as witnesses to verify. The round function (`T1,T2`, Ch/Maj/Σ) and mod 2^32 addition (`BitAdder`) are circuitized. Bit packing trades off smaller input size (↑ depth).
+
+### 5.5 CBOR Parser Circuit — `circuits/cbor_parser/`, `cbor_parser_v2/`
+Because mdoc is encoded in **CBOR**, the circuit parses CBOR internally to attest "where a specific attribute is / what its value is." v1 is based on a segmented scan (cumulative length); **v2 is based on `UnaryPlucker`, removing unnecessary scans** to improve efficiency. At each byte position it interprets the header (type/length) and tracks element boundaries.
+
+### 5.6 MAC Circuit — `circuits/mac/`
+Verifies the MAC of a 256-bit message over GF(2^128) (`mac_circuit.h`). The form is `mac[i] = (a_p[i] + a_v)·x[i]`. `a_p` is the key committed by the prover, and **`a_v` is the verifier randomness**. The forgery success probability is ≤ 2^-128. Its purpose is to be the **glue that links the two circuits (signature/hash)** (see section 6 below).
+
+### 5.7 mdoc Integration Circuit — `circuits/mdoc/`
+Ties the above blocks together to circuitize the full mdoc verification.
+- `mdoc_signature.h`: issuer (MSO)/device ECDSA signature verification.
+- `mdoc_hash.h`: mdoc hash computation + confirming that the hash of the requested attribute exists in the MSO's attribute digest map. **age_over_18**-type proofs happen here.
+- `mdoc_witness.h` (`ParsedMdoc`, `FullAttribute`): mdoc parsing / witness filling.
+- `zk_spec.cc`: registry of supported circuit versions (system name, circuit hash, attribute count, rate/nreq parameters).
+- `circuit_maker.cc` / `mdoc_generate_circuit.cc`: generate a circuit once and store it as a cache (compressed bytes) → reused by prover/verifier.
+
+---
+
+## 6. Core Design: "Two Circuits + MAC Glue" (Implementation Analysis)
+
+Looking at `run_mdoc_prover` (`:394`) / `run_mdoc_verifier` (`:538`) in `lib/circuits/mdoc/mdoc_zk.cc`, the most important architecture is that **two independent circuits over two different fields are proved simultaneously** and linked by a MAC.
+
+| | signature circuit | hash circuit |
 |---|---|---|
-| 체(field) | `Fp256Base` (P-256) | `f_128` (GF(2^128)) |
-| 담당 | ECDSA 서명 검증 | SHA-256 해시 + CBOR 속성 추출 |
-| 왜 분리? | ECDSA는 P-256 산술이 자연스러움 | 해시/비트연산은 GF(2^128)에서 훨씬 저렴 |
+| field | `Fp256Base` (P-256) | `f_128` (GF(2^128)) |
+| responsibility | ECDSA signature verification | SHA-256 hash + CBOR attribute extraction |
+| why split? | ECDSA is natural in P-256 arithmetic | hash/bit operations are far cheaper in GF(2^128) |
 
-**왜 MAC이 필요한가?** 두 회로가 "같은 메시지 해시 `e`/같은 디바이스 키"를 다루는지 보장해야 한다. 한쪽은 Fp256, 다른쪽은 GF(2^128)이라 직접 같은 값을 공유할 수 없으므로, **공통값(common)에 대한 MAC을 양쪽 회로에 넣어 일치**시킨다.
+**Why is a MAC needed?** It must be guaranteed that the two circuits handle "the same message hash `e` / the same device key." One side is Fp256 and the other is GF(2^128), so they cannot directly share the same value; therefore, **a MAC over the common value (common) is placed in both circuits to make them match**.
 
-구현 흐름(프루버, `mdoc_zk.cc:419`~`535`):
-1. 캐시된 압축 회로 바이트를 `decompress` 후 `CircuitReader`로 `c_sig`(P256), `c_hash`(GF2_128) 두 회로 파싱.
-2. `fill_witness`로 두 회로의 witness(`W_sig`, `W_hash`)를 채움 — mdoc 파싱·서명·해시·속성 추출 결과.
-3. `ZkProver.commit`으로 두 회로의 witness+패드에 각각 커밋(`:487`,`:488`).
-4. **커밋 후** transcript에서 검증자 챌린지 `av = generate_mac_key(tp)`를 뽑고, 공통값의 MAC `compute_macs`를 계산해 두 witness에 주입(`update_macs`, `:500`~`:504`). ← 두 회로를 잇는 단계.
-5. `ZkProver.prove`로 hash·sig 각각 증명 생성(`:506`,`:511`).
-6. 직렬화: `[6개 MAC] [hash proof] [sig proof]`(`:517`~`:524`).
+Implementation flow (prover, `mdoc_zk.cc:419`~`535`):
+1. `decompress` the cached compressed circuit bytes, then parse the two circuits `c_sig` (P256) and `c_hash` (GF2_128) with `CircuitReader`.
+2. Fill the witnesses of the two circuits (`W_sig`, `W_hash`) with `fill_witness` — the results of mdoc parsing/signature/hash/attribute extraction.
+3. Commit to the witness+pad of each circuit with `ZkProver.commit` (`:487`, `:488`).
+4. **After committing**, draw the verifier challenge `av = generate_mac_key(tp)` from the transcript, compute the MAC `compute_macs` of the common value, and inject it into the two witnesses (`update_macs`, `:500`~`:504`). ← the step that links the two circuits.
+5. Generate proofs for hash and sig respectively with `ZkProver.prove` (`:506`, `:511`).
+6. Serialization: `[6 MACs] [hash proof] [sig proof]` (`:517`~`:524`).
 
-검증자(`mdoc_zk.cc:608`~`690`)는 대칭적으로: MAC 6개 읽기 → 두 proof 파싱 → `recv_commitment` → 동일하게 `av` 파생 → `fill_public_inputs`로 공개입력 구성(여기서 pk, transcript, 요청속성, now, docType, MAC들이 들어감) → `hash_v.verify` && `sig_v.verify`. **둘 다 통과해야** 성공.
+The verifier (`mdoc_zk.cc:608`~`690`) does the symmetric thing: read the 6 MACs → parse the two proofs → `recv_commitment` → derive `av` identically → construct the public inputs with `fill_public_inputs` (here pk, transcript, requested attributes, now, docType, and the MACs go in) → `hash_v.verify` && `sig_v.verify`. **Both must pass** to succeed.
 
-`ZkProver::prove`(`lib/zk/zk_prover.h:102`) 내부가 4장의 5단계를 그대로 수행:
-- `eval_circuit`로 모든 와이어 계산 후 출력이 모두 0인지 확인(`:117`).
-- `super::prove(...)`로 **암호화된 sumcheck** 실행.
-- `verifier_constraints`로 선형/이차 제약 행렬 `A`, 벡터 `b` 생성(`:134`).
-- `lp_->prove(...)`로 **Ligero 증명** 생성(`:144`).
-
----
-
-## 7. 공개 C API (통합 지점)
-
-`lib/circuits/mdoc/mdoc_zk.h`가 외부(예: Android gmscore, Google Wallet)에서 호출할 C 인터페이스를 정의:
-
-- `generate_circuit(zk_spec, &cb, &clen)` — 속성 개수에 맞는 회로를 생성·압축. 한 번 만들어 캐시.
-- `run_mdoc_prover(circuit, mdoc, pkx,pky, transcript, attrs[], now, &prf, &len, zk_spec)` — 증명 생성. `now`가 validFrom/validUntil 범위를 벗어나면 실패.
-- `run_mdoc_verifier(circuit, pkx,pky, transcript, attrs[], now, proof, len, docType, zk_spec)` — 검증.
-- `RequestedAttribute{namespace, id, cbor_value}` — 검증자가 요구하는 속성(값은 raw CBOR 바이트). 예: `{"age_over_18", ...}`, `{"family_name","Mustermann"}`, `{"birth_date","1971-09-01"(태그 0xD9 03EC 6A)}` (`mdoc_zk.h:150`).
-- `ZkSpecStruct` — 시스템명("longfellow-libzk-v*")·회로해시·속성개수·버전·블록 파라미터를 묶은 버전 협상 구조체. 프루버/검증자가 사전에 버전을 협상(`mdoc_zk.h:114`). 현재 `kNumZkSpecs=12`개 스펙 하드코딩.
+The internals of `ZkProver::prove` (`lib/zk/zk_prover.h:102`) perform exactly the 5 stages of section 4:
+- After computing all wires with `eval_circuit`, confirm that the outputs are all 0 (`:117`).
+- Run the **encrypted sumcheck** with `super::prove(...)`.
+- Generate the linear/quadratic constraint matrix `A` and vector `b` with `verifier_constraints` (`:134`).
+- Generate the **Ligero proof** with `lp_->prove(...)` (`:144`).
 
 ---
 
-## 8. 성능 · 보안 고려사항
+## 7. Public C API (Integration Point)
 
-**성능**(논문/공식 자료 기준)
-- ECDSA ZK 증명 생성: ~60ms
-- ISO mdoc 제시 플로우 전체 ZK 증명: ~1.2초 (모바일, 자격증명 크기에 따라 변동)
-- 회로 규모(예시): ECDSA 검증 회로 깊이 7 / 와이어 ~21k / 곱셈 ~14k, SHA-256 깊이 7 / 와이어 ~38k.
+`lib/circuits/mdoc/mdoc_zk.h` defines the C interface to be called from the outside (e.g., Android gmscore, Google Wallet):
 
-**보안 가정/특성**
-- **신뢰 셋업 없음(no trusted setup), CRS 없음** — SNARK류 다수를 의도적으로 배제(`libzk.md:42`).
-- **충돌저항 해시(SHA-256)만 가정** — 그 외 복잡한 가정 없음.
-- Fiat-Shamir 건전성: round-by-round soundness + 랜덤오라클의 correlation-intractability에 의존(`libzk.md:139`).
-- 통계적 보안: 파라미터(rate, NREQ)로 조절 — v7에서 ~109비트.
-- **독립 보안감사 2건** 진행 중 (학계·업계 패널, 공식 문서 Reviews 페이지에 보고서 공개).
-
-**버전 호환성**: 회로 게이트가 바뀌면 새 회로해시를 `zk_spec`에 추가하고, witness 레이아웃이 바뀌면 버전 분기 코드를 추가해야 함(`circuits/mdoc/README.md`).
+- `generate_circuit(zk_spec, &cb, &clen)` — generate and compress a circuit matching the attribute count. Build once and cache.
+- `run_mdoc_prover(circuit, mdoc, pkx,pky, transcript, attrs[], now, &prf, &len, zk_spec)` — generate a proof. Fails if `now` falls outside the validFrom/validUntil range.
+- `run_mdoc_verifier(circuit, pkx,pky, transcript, attrs[], now, proof, len, docType, zk_spec)` — verify.
+- `RequestedAttribute{namespace, id, cbor_value}` — the attribute the verifier requires (the value is raw CBOR bytes). Examples: `{"age_over_18", ...}`, `{"family_name","Mustermann"}`, `{"birth_date","1971-09-01"(tag 0xD9 03EC 6A)}` (`mdoc_zk.h:150`).
+- `ZkSpecStruct` — a version-negotiation structure bundling the system name ("longfellow-libzk-v*"), circuit hash, attribute count, version, and block parameters. The prover/verifier negotiate the version in advance (`mdoc_zk.h:114`). Currently `kNumZkSpecs=12` specs are hardcoded.
 
 ---
 
-## 9. 표준화 · 생태계
+## 8. Performance & Security Considerations
 
-- **IETF**: CFRG에서 `draft-google-cfrg-libzk`("libzk: A C++ Library for Zero-Knowledge Proofs")로 사양화 중. `docs/specs/`가 그 워킹 파일.
-- **유럽(EUDI)**: Dyne.org 재단이 유럽판(dyne/longfellow-zk)을 유지, EUDI ARF·연령확인 솔루션에 활용.
-- **Google Wallet**: 정부발급 디지털 ID 기반 온라인 연령확인에 적용 계획.
-- **OpenWallet Foundation Multipaz** 등 디지털 자격증명 SDK 생태계와 연동.
+**Performance** (per the paper/official materials)
+- ECDSA ZK proof generation: ~60ms
+- Full ZK proof of the ISO mdoc presentation flow: ~1.2s (mobile, varies with credential size)
+- Circuit scale (examples): ECDSA verification circuit depth 7 / wires ~21k / multiplications ~14k, SHA-256 depth 7 / wires ~38k.
+
+**Security assumptions/characteristics**
+- **No trusted setup, no CRS** — deliberately excluding many SNARK-type schemes (`libzk.md:42`).
+- **Assumes only a collision-resistant hash (SHA-256)** — no other complex assumptions.
+- Fiat-Shamir soundness: depends on round-by-round soundness + the correlation-intractability of the random oracle (`libzk.md:139`).
+- Statistical security: tunable via parameters (rate, NREQ) — ~109 bits at v7.
+- **Two independent security audits** in progress (academic/industry panel; reports published on the official Reviews page).
+
+**Version compatibility**: if the circuit gates change, a new circuit hash must be added to `zk_spec`, and if the witness layout changes, version-branching code must be added (`circuits/mdoc/README.md`).
 
 ---
 
-## 10. 빌드 · 실행 방법
+## 9. Standardization & Ecosystem
 
-의존성: `clang, cmake, openssl, zstd, googletest, googlebenchmark` (README 참조).
+- **IETF**: being specified at CFRG as `draft-google-cfrg-libzk` ("libzk: A C++ Library for Zero-Knowledge Proofs"). `docs/specs/` is the working file for it.
+- **Europe (EUDI)**: the Dyne.org Foundation maintains a European edition (dyne/longfellow-zk), used in EUDI ARF / age-verification solutions.
+- **Google Wallet**: planned for application to online age verification based on government-issued digital ID.
+- Integrates with the digital credential SDK ecosystem such as the **OpenWallet Foundation Multipaz**.
+
+---
+
+## 10. Build & Run Instructions
+
+Dependencies: `clang, cmake, openssl, zstd, googletest, googlebenchmark` (see README).
 
 ```bash
-# 의존성 (Ubuntu/Debian)
+# Dependencies (Ubuntu/Debian)
 sudo apt install -y clang cmake libssl-dev libzstd-dev libgtest-dev libbenchmark-dev zlib1g-dev
 
-# 빌드
+# Build
 CXX=clang++ cmake -D CMAKE_BUILD_TYPE=Release -S lib -B clang-build-release --install-prefix ${PWD}/install
 cd clang-build-release && make -j 16 && ctest -j 16
 
-# 벤치마크 예시
+# Benchmark example
 ./algebra/fft_test --benchmark_filter='BM_*'
 ./circuits/sha/flatsha256_circuit_test --benchmark_filter=BM_ShaZK_fp2_128
 ```
-> `.devcontainer`가 있어 GitHub Codespaces에서 즉시 빌드/벤치 가능(VM이라 성능치는 더 낮을 수 있음).
+> A `.devcontainer` is present, so you can build/benchmark immediately in GitHub Codespaces (being a VM, performance figures may be lower).
 
 ---
 
-## 11. 관련 논문 · 자료 (저장 위치: `../references/`)
+## 11. Related Papers & Resources (stored at: `../references/`)
 
-| 자료 | 설명 | 비고 |
+| Resource | Description | Notes |
 |---|---|---|
-| **Anonymous credentials from ECDSA** (ePrint 2024/2010) | Longfellow의 원논문. Frigo & shelat (Google). sumcheck+Ligero로 ECDSA ZK | `references/2024-2010_Anonymous-credentials-from-ECDSA.pdf` |
-| **Ligero** (ePrint 2022/1608) | 신뢰 셋업 없는 sublinear 논증. 커밋먼트+ZK 토대 | `references/2022-1608_Ligero.pdf` |
-| **Novel polynomial basis / Additive FFT** (arXiv 1404.3458) | GF(2^k) extend 효율 구현의 기반 (Lin, Chung, Han 2014) | `references/1404.3458_Additive-FFT_Lin-et-al.pdf` |
-| IETF draft-google-cfrg-libzk | 사양 초안 | `longfellow-zk/docs/specs/` (로컬 워킹 카피) |
-| Fiat-Shamir from Simpler Assumptions (ePrint 2018/1004) | FS 건전성 이론적 근거 | 링크 참조 |
-| 공식 문서 | https://google.github.io/longfellow-zk/ | Reviews(보안감사) 포함 |
+| **Anonymous credentials from ECDSA** (ePrint 2024/2010) | The original Longfellow paper. Frigo & shelat (Google). ECDSA ZK via sumcheck+Ligero | `references/2024-2010_Anonymous-credentials-from-ECDSA.pdf` |
+| **Ligero** (ePrint 2022/1608) | Sublinear argument with no trusted setup. The commitment+ZK foundation | `references/2022-1608_Ligero.pdf` |
+| **Novel polynomial basis / Additive FFT** (arXiv 1404.3458) | The basis for the efficient GF(2^k) extend implementation (Lin, Chung, Han 2014) | `references/1404.3458_Additive-FFT_Lin-et-al.pdf` |
+| IETF draft-google-cfrg-libzk | Specification draft | `longfellow-zk/docs/specs/` (local working copy) |
+| Fiat-Shamir from Simpler Assumptions (ePrint 2018/1004) | Theoretical basis for FS soundness | See link |
+| Official documentation | https://google.github.io/longfellow-zk/ | Includes Reviews (security audits) |
 
 ---
 
-## 12. 결론
+## 12. Conclusion
 
-Longfellow-ZK는 "**레거시 ECDSA 신원 인프라를 그대로 두고 프라이버시(선택적 공개·비추적성)를 얹는다**"는 실용적 목표를, **신뢰 셋업 없이 해시 가정만으로** 달성하는 엔지니어링 결정체다. 설계의 정수는:
+Longfellow-ZK is an engineering masterpiece that achieves the practical goal of "**leaving the legacy ECDSA identity infrastructure intact while layering on privacy (selective disclosure / non-traceability)**," **using only a hash assumption with no trusted setup**. The essence of the design is:
 
-1. **모듈 분리** — (암호화된)sumcheck IP + Ligero 커밋먼트, 커밋먼트 교체 가능.
-2. **검증자 환원** — 복잡한 ZK 대신 "sumcheck 검증자 로직"이라는 단순 제약을 Ligero로 증명.
-3. **두 회로 + MAC** — ECDSA는 P-256 체, 해시/비트연산은 GF(2^128) 체로 각각 최적 구현하고 MAC으로 결속.
-4. **회로 캐싱·버전협상** — 회로를 한 번 만들어 압축 캐시, `ZkSpec`로 버전 협상.
+1. **Module separation** — (encrypted) sumcheck IP + Ligero commitment, with a swappable commitment.
+2. **Verifier reduction** — instead of complex ZK, prove the simple constraints of "the sumcheck verifier logic" with Ligero.
+3. **Two circuits + MAC** — ECDSA implemented optimally in the P-256 field and hash/bit operations in the GF(2^128) field, linked by a MAC.
+4. **Circuit caching / version negotiation** — generate the circuit once and cache it compressed, negotiating the version via `ZkSpec`.
 
-hopae가 다루는 SD-JWT VC / mdoc / 디지털 지갑 맥락에서, 이 라이브러리는 **"발급자 변경 없이 ZK 선택적 공개를 추가"** 하려는 시나리오의 직접적 참조 구현이다.
+In the SD-JWT VC / mdoc / digital wallet context that hopae deals with, this library is a direct reference implementation for the scenario of **"adding ZK selective disclosure without changing the issuer."**
