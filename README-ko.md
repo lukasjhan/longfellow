@@ -17,7 +17,7 @@
 longfellow/
 ├── README.md                    # (이 파일) 전체 개요·재현법
 ├── longfellow-zk_분석보고서.md   # 소스코드 심층 분석 (한글, 12장)
-├── longfellow-zk/               # 업스트림 클론 (git에서 제외, 아래 "재현" 참고)
+├── longfellow-zk/               # 업스트림 git 서브모듈 (SHA 고정; --recurse-submodules로 init)
 ├── playground/                  # ⭐ Node.js 플레이그라운드 (issue→present→verify)
 │   ├── native/longfellow_cli.cc #   longfellow C API 래퍼 CLI
 │   ├── native/build.sh          #   라이브러리+CLI 빌드 스크립트
@@ -107,12 +107,13 @@ pnpm run verify    # 증명 검증 (ACCEPT면 exit 0)
 ## 3. 재현 방법 (처음부터)
 
 ```bash
-cd /home/unknown/longfellow
+# 0) 업스트림 서브모듈까지 함께 클론
+git clone --recurse-submodules <이-레포-URL>
+cd longfellow
+# (--recurse-submodules 없이 이미 클론했다면:)
+#   git submodule update --init
 
-# 1) 업스트림 클론 (git에서 제외되어 있으므로 직접 클론)
-git clone --depth 1 https://github.com/google/longfellow-zk.git
-
-# 2) 플레이그라운드 빌드 & 실행
+# 1) 플레이그라운드 빌드 & 실행
 cd playground
 pnpm install        # (현재는 의존성 없음 — 향후 확장 대비)
 pnpm run build:native

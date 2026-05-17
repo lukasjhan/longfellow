@@ -16,7 +16,7 @@ A working repository that **analyzes** [google/longfellow-zk](https://github.com
 longfellow/
 ├── README.md                    # (this file) overall overview · reproduction
 ├── longfellow-zk_분석보고서.md   # in-depth source code analysis (12 chapters; Korean: -ko.md)
-├── longfellow-zk/               # upstream clone (excluded from git, see "Reproduction" below)
+├── longfellow-zk/               # upstream as a git submodule (pinned SHA; init via --recurse-submodules)
 ├── playground/                  # ⭐ Node.js playground (issue→present→verify)
 │   ├── native/longfellow_cli.cc #   longfellow C API wrapper CLI
 │   ├── native/build.sh          #   library + CLI build script
@@ -107,12 +107,13 @@ pnpm run verify    # verify proof (exit 0 if ACCEPT)
 ## 3. Reproduction (from scratch)
 
 ```bash
-cd /home/unknown/longfellow
+# 0) clone this repo WITH the upstream submodule
+git clone --recurse-submodules <this-repo-url>
+cd longfellow
+# (already cloned without --recurse-submodules? run:)
+#   git submodule update --init
 
-# 1) clone upstream (it is excluded from git, so clone it directly)
-git clone --depth 1 https://github.com/google/longfellow-zk.git
-
-# 2) build & run the playground
+# 1) build & run the playground
 cd playground
 pnpm install        # (currently no dependencies — in preparation for future expansion)
 pnpm run build:native

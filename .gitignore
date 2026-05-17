@@ -1,5 +1,4 @@
-# --- upstream clone (reproducible via git clone; do not vendor 40MB) ---
-/longfellow-zk/
+# --- upstream is now a git submodule (see .gitmodules); pinned, not vendored ---
 
 # --- C++ build outputs ---
 /build/
