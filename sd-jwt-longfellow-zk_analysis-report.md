@@ -94,6 +94,22 @@ single Fp256 (`sdjwt_full`) is ≈ 13s, so the split is ~8× faster.
 | Fixed-size proof (privacy uniformity) | **which attributes and how many** are disclosed is exposed (a circuit is compiled per N) |
 | | nested values are disclosed wholesale (no partial selective disclosure) |
 
+### 4.1 From the verifier's 5 standard checks
+
+A verifier typically performs five checks. Mapping each to **what this implementation does (A)** vs **what is possible with ZK in principle but unimplemented (B)**:
+
+| Check | This implementation | ZK in principle | Note |
+|---|---|---|---|
+| 1. Issuer signature | ✅ full | ✅ | The core of longfellow. Proves "a valid signature under this pk exists" while hiding the signature |
+| 2. Value check (e.g. adult=true) | ⚠️ **equality only** | ✅ predicates/ranges too | see below |
+| 3. Expiry | ✅ `now ≤ exp` | ✅ | exp value hidden, only the predicate. No **nbf**, upper bound only |
+| 4. Revocation | ❌ **none** | ✅ possible (needs infra) | see below |
+| 5. Issuer trust | ✅ (verifier supplies pk) | ✅ "one of a trust list" hiding also possible | see below / §8.2 |
+
+- **Value check** — only *equality* ("claim = public value") works; `age_over_18=true` works because the issuer pre-inserted that boolean. Derived **predicates/ranges** (deriving "age≥18" from a birthdate) are **not** in this circuit, though range proofs are very ZK-friendly in general. (The `now≤exp` comparison is a bespoke numeric compare for that one claim, not a generic facility.)
+- **Revocation** — no status/revocation check in the circuit. ZK *can* do it (e.g. SD-JWT-VC **Token Status List**: prove "my status bit = not-revoked" while hiding the index; or accumulator/Merkle non-membership), but it needs new circuits + the verifier holding a fresh status list. Revocation and unlinkability are inherently in tension (revealing the status index re-links you).
+- **Issuer trust** — the verifier supplies the trusted issuer's pk as a public input; the circuit proves "signed by that pk." Trust is decided out-of-band (the verifier's trusted-issuer registry). Hiding *which* trusted issuer (set membership over trust anchors) is possible in principle but unimplemented — see §8.2.
+
 ---
 
 ## 5. Comparison with mdoc (original, verified)
@@ -191,6 +207,33 @@ All split/monolith demos green (valid / expired / adversarial-exp / tamper / big
   The nonce is plaintext in the KB payload (a value that need not be hidden).
 - **Unlinkability**: a fresh proof per presentation. However, the kinds and count (N) of disclosed attributes and
   the disclosed values themselves are exposed.
+
+### 8.1 Privacy model: blocking linkability vs inference
+
+What this ZKP targets is **unlinkability + data minimization**, **not** preventing **inference** of coarse attributes.
+
+- The real linkability handle is a **static, unique value that recurs every time** — namely the issuer's ECDSA signature. ZK **hides it and produces a fresh proof each time**, so presentations cannot be correlated to each other (or to issuance).
+- By contrast, the **issuer public key (kid) is still revealed** as a public input. For a PID this means the **issuing country is disclosed** — proving `age_over_18` also leaks "this is a German/Greek/… PID." This is an **inference/disclosure** matter, **out of scope** for the linkability goal.
+- Crucially, revealing the issuer key does **not** break unlinkability **as long as that key is shared by a large population**: a national PID key is shared by millions, so it is a *coarse group attribute*, not a per-person correlator. Even issuer–verifier collusion cannot pinpoint which credential was shown (the signature stays hidden).
+- **Caveat — anonymity-set size**: this holds only while the issuer-key set stays large. If keys are fragmented (per region/batch, or rotation so frequent that the `kid` is e.g. "DE-2026-week-12"), the issuer key degrades into a **quasi-identifier** and unlinkability erodes. So **key-rotation granularity is itself a privacy parameter** (rotating too often shrinks the anonymity set). Likewise, combining several revealed coarse attributes can re-identify — but that is the inference layer, not the ZKP's job.
+
+> One line: this ZKP solves *"what is shown"* (minimization) and *"are presentations linked"* (unlinkability). It does **not** hide *"who issued"* — for PID that is a nationality inference that remains, and it is acceptable for linkability **so long as the issuer-key anonymity set is large**.
+
+### 8.2 Multi-issuer / key rotation (EUDI PID)
+
+EUDI PID is issued by 27+ member states, each with multiple issuers and periodic key rotation → hundreds of valid issuer keys over time. Practical strategies:
+
+| Strategy | 27+ keys & rotation | Hides country? | Circuit cost | This impl |
+|---|---|---|---|---|
+| **A) Trusted List + reveal issuer** | absorbed by the list (keys carry validity periods) | ❌ exposed | low (1 signature) | ✅ |
+| **B) Cert chain → root** | **converges to a root (best for mgmt)** | ❌ exposed | medium (2–3 signatures) | ❌ |
+| **C) Set-membership ZK over the trust list** | set/root must stay current | ✅ hidden | high (+Merkle) | ❌ |
+
+- **A** is what this implementation does: the verifier resolves the issuer key from the credential's `kid`/`x5c` against the EU **Trusted List** (LOTL, ETSI TS 119 612) and supplies it as a public input. Rotation is just "more keys with validity periods in the list." It **reveals the issuing country**.
+- **B** verifies a cert chain (credential → issuer cert → root) **in-circuit**, so the verifier trusts only a few roots and rotation becomes "a new cert under the same root" — but EUDI trust is **federated** (27 national trust anchors, not one EU super-root), so a single root usually does not exist.
+- **C** proves "signed by *one of* the trusted anchors" while **hiding which** (Merkle/accumulator membership; the root is a public input). This is the privacy-preserving direction but needs new circuits + **freshness** of the trust-list root. Because EUDI is federated, hiding the country specifically requires set-membership over the ~27 anchors (there is no single root to hide behind).
+
+Near-term, **A + Trusted List** (rotation handled by validity periods) is realistic and is what this implementation maps to; **C** is the future work for country-hiding.
 
 ---
 
