@@ -221,11 +221,25 @@ playground/
 
 ## 다음 단계 (확장 아이디어)
 
-- **실제 발급 연동**: `@auth0/mdl` 등으로 새 ECDSA mdoc를 발급한 뒤 longfellow로
-  present/verify. CBOR/MSO/deviceKey/transcript 구조가 longfellow 파서 기대와
-  맞아야 하므로 호환성 검증이 필요(프루버가 에러코드 반환 시 단서).
-- **다속성 증명**: `gencircuit --attrs 2`(또는 그 이상) + `--attr` 여러 개. 예제
-  index 3(Sprind-Funke)은 `family_name` 등 다속성 포함.
+**원래 mdoc 데모 이후 완료된 것:**
+
+- ✅ **실제 발급 연동** — `@lukas.j.han/mdoc`로 실제 mdoc 발급+제시(`pnpm run gen:mdoc`),
+  실제 ES256 SD-JWT-VC 발급(`pnpm run gen:sdjwt`). 둘 다 longfellow가 end-to-end로 수용
+  (PD 불필요; 전체 issuerSigned + 빈 deviceNS + ES256 deviceSignature + raw SessionTranscript).
+- ✅ **SD-JWT-VC 선택공개 ZK** — 단일 회로(`sdjwt_full`) + 2회로 MAC 결속 split(`sdjwt_split`).
+  위 SD-JWT 섹션 참고.
+- ✅ **다속성 증명** — SD-JWT 데모는 기본 3속성 공개(+`pnpm run gen:sdjwt-big`로 13속성
+  PID급 자격증명); mdoc CLI는 `gencircuit --attrs N` + `--attr` 여러 개 지원(예제 index 3
+  Sprind-Funke는 `family_name` 등 다속성 포함).
+- ✅ **가명 nullifier (CI/DI 대응)** — 두 포맷 모두: `pnpm run demo:nullifier`(SD-JWT),
+  `pnpm run demo:mdoc-nullifier`(실제 mdoc). 발급자가 `pseudonym_secret`을 커밋하고, 회로가
+  secret을 숨긴 채 `nullifier = SHA(secret ‖ SHA(context))`를 증명. 보고서:
+  [`sd-jwt-nullifier_analysis-report-ko.md`](../sd-jwt-nullifier_analysis-report-ko.md),
+  [`mdoc-nullifier_analysis-report-ko.md`](../mdoc-nullifier_analysis-report-ko.md)
+  (블라인드 발급·임의 필드순서 일반화 등 각 future work는 보고서 §8에).
+
+**남은 것:**
+
 - **N-API 전환**: 프로세스 기동 오버헤드를 없애려면 `longfellow_cli.cc`의 로직을
   node-addon-api로 감싸 in-process 호출로 교체.
 - **HTTP API화**: `research-eudi-module`처럼 NestJS 엔드포인트(`/present`,

@@ -221,11 +221,15 @@ For a detailed analysis, see [`../longfellow-zk_analysis-report.md`](../longfell
 
 ## Next steps (extension ideas)
 
-- **Real issuance integration**: issue a new ECDSA mdoc with `@auth0/mdl` etc., then present/verify it
-  with longfellow. The CBOR/MSO/deviceKey/transcript structures must match what the longfellow parser
-  expects, so compatibility verification is needed (clues when the prover returns an error code).
-- **Multi-attribute proof**: `gencircuit --attrs 2` (or more) + multiple `--attr`. Example
-  index 3 (Sprind-Funke) includes multiple attributes such as `family_name`.
+**Completed since the original mdoc demo:**
+
+- ✅ **Real issuance integration** — issue + present a real mdoc with `@lukas.j.han/mdoc` (`pnpm run gen:mdoc`) and a real ES256 SD-JWT-VC (`pnpm run gen:sdjwt`); both are accepted by longfellow end-to-end. (No PD needed; full issuerSigned + empty deviceNS + ES256 deviceSignature + raw SessionTranscript.)
+- ✅ **SD-JWT-VC selective-disclosure ZK** — single circuit (`sdjwt_full`) and 2-circuit MAC-linked split (`sdjwt_split`); see the SD-JWT sections above.
+- ✅ **Multi-attribute proof** — the SD-JWT demos disclose 3 attributes by default (and a 13-attribute PID-grade credential via `pnpm run gen:sdjwt-big`); the mdoc CLI supports `gencircuit --attrs N` + multiple `--attr` (example index 3, Sprind-Funke, has several attributes such as `family_name`).
+- ✅ **Pseudonymous nullifier (CI/DI analogue)** on both formats — `pnpm run demo:nullifier` (SD-JWT) and `pnpm run demo:mdoc-nullifier` (real mdoc). The issuer commits a `pseudonym_secret`; the circuit proves `nullifier = SHA(secret ‖ SHA(context))` with the secret hidden. Reports: [`sd-jwt-nullifier_analysis-report.md`](../sd-jwt-nullifier_analysis-report.md), [`mdoc-nullifier_analysis-report.md`](../mdoc-nullifier_analysis-report.md) (each lists its own future work, e.g. blind issuance and arbitrary-field-order generalization).
+
+**Still open:**
+
 - **N-API migration**: to eliminate process-startup overhead, wrap the logic of `longfellow_cli.cc`
   with node-addon-api to replace it with an in-process call.
 - **HTTP API exposure**: expose it as NestJS endpoints (`/present`,
