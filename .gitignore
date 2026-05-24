@@ -38,6 +38,9 @@ playground/artifacts-jwt/
 playground/circuits/*.bin
 playground/circuits-cache/
 
+# --- generated mdoc fixtures (regenerable via gen:mdoc; contain a device key) ---
+playground/fixtures/mdoc*
+
 # --- third-party papers (links in references/README.md) ---
 references/*.pdf
 
