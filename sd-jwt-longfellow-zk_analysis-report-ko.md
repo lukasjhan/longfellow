@@ -259,6 +259,16 @@ EUDI PID는 27개국+ 발급, 각국 다발급자 + 주기적 로테이션 → �
 - **[S3] 발견·수정.** 초기엔 `context`를 고정 64B로 잘라/패딩 → 앞 64B 공유 scope가 충돌(실측: `A×64` 와 `A×64+X` 가 같은 nullifier). **수정:** raw context 대신 `SHA256(context)`를 바인딩(길이 무관), `CTXLEN 64→32`, `NULLB 3→2`; 재측정 시 서로 다름.
 - **한계(회로로 못 막음).** 발급자가 `secret`을 알아 임의 scope nullifier 계산 가능 → **발급자가 역추적/연결** 가능(CI/DI와 동일 신뢰모델; **블라인드 발급**이 제거 — 미래). Sybil 저항은 발급자가 **1인당 secret 하나**(재발급 포함) 발급 가정. `pseudonym_secret`은 고정 64-hex. **mdoc** nullifier는 미구현(longfellow 공개 mdoc API로는 숨긴-secret nullifier 불가, 커스텀 회로 필요).
 
+**Free-index 감사 (nullifier 전용).** nullifier 회로는 크레덴셜 인덱스(§6)를 재사용하고 아래를 추가 — 별개 회로라 따로 감사:
+
+| 인덱스 | 가리키는 곳 | 안전 근거 | 판정 |
+|---|---|---|---|
+| `sec_sd_idx` | secret의 `_sd` 항목 | `base64decode(창) == SHA(secret_disclosure)` → SHA 역상/충돌 (`sd_idx`와 동일) | ✅ (해시) |
+| `sec_shift` | 디스클로저 내 secret 값 오프셋 | `","pseudonym_secret","` 리터럴 앵커; base64url/hex가 `"`·`,` 배제해 **유일 강제** | ✅ 보장 |
+| `sec_len` | 디코드된 디스클로저 길이 | 틀리면 앵커/멤버십 실패 | ✅ |
+
+> `null_nb`는 `== NULLB`로 강제되고 `null_pre`는 `secret ‖ context_hash ‖ 표준패딩`에 전부 바인딩 → nullifier SHA 입력이 상수(자유 witness 없음). `context_hash`는 witness가 아니라 공개입력.
+
 ---
 
 ## 9. 남은 항목 / 한계

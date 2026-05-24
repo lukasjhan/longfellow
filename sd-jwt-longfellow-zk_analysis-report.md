@@ -259,6 +259,16 @@ A research extension makes the credential **pseudonymous** via a **nullifier** �
 - **[S3] found & fixed.** The first version padded/truncated `context` into a fixed 64-byte field, so distinct scopes sharing the first 64 bytes collided (measured: `A×64` and `A×64+X` gave the same nullifier). **Fix:** bind `SHA256(context)` instead of the raw context (length-independent), `CTXLEN 64→32`, `NULLB 3→2`; re-measured distinct.
 - **Limitations (not fixable in-circuit).** The issuer knows `secret`, so it can compute any scope's nullifier → **the issuer can de-anonymize/link** (same trust model as CI/DI; **blind issuance** would remove this — future work). Sybil resistance assumes the issuer issues **one secret per person** (across re-issuances). `pseudonym_secret` is a fixed 64-hex value. An **mdoc** nullifier is unimplemented (longfellow's public mdoc API cannot expose a hidden-secret nullifier; needs a custom circuit).
 
+**Free-index audit (nullifier-specific).** The nullifier circuit reuses the credential indices (§6) and adds these; audited separately since it is a distinct circuit:
+
+| Index | Points at | Safety basis | Verdict |
+|---|---|---|---|
+| `sec_sd_idx` | `_sd` entry for the secret | `base64decode(window) == SHA(secret_disclosure)` → SHA preimage/collision (same as `sd_idx`) | ✅ (hash) |
+| `sec_shift` | secret value offset in the disclosure | `","pseudonym_secret","` literal anchor; **uniquely forced** (base64url/hex exclude `"`/`,`) | ✅ guaranteed |
+| `sec_len` | decoded disclosure length | wrong length → anchor/membership fails | ✅ |
+
+> `null_nb` is asserted `== NULLB` and `null_pre` is fully bound to `secret ‖ context_hash ‖ canonical-padding`, so the nullifier SHA input is constant (no free witness). `context_hash` is a public input, not a witness.
+
 ---
 
 ## 9. Remaining items / limitations
