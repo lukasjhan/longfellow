@@ -104,8 +104,8 @@ constexpr size_t MAXNONCE = 64;        // max `"nonce":"<n>"` pattern (KB freshn
 constexpr size_t MAXAUD = 128;         // max `"aud":"<v>"` pattern (KB audience)
 // nullifier: secret value is 64 hex chars; context_id fixed CTXLEN bytes (padded)
 constexpr size_t SECN = 64;            // pseudonym_secret value length (hex chars)
-constexpr size_t CTXLEN = 64;          // fixed context_id length (zero-padded)
-constexpr size_t NULLB = 3;            // SHA blocks for SECN+CTXLEN=128B msg (ceil((128+9)/64))
+constexpr size_t CTXLEN = 32;          // context_hash length: bind SHA(context), not raw context (no truncation/padding ambiguity)
+constexpr size_t NULLB = 2;            // SHA blocks for SECN+CTXLEN=96B msg (ceil((96+9)/64))
 // number of disclosures (nattr) is now a runtime parameter
 constexpr size_t KBB = 6;              // SHA blocks for KB header.payload: 384 B
 constexpr size_t DECKB = 64 * KBB;     // KB payload decode buffer
@@ -578,8 +578,9 @@ struct Concrete {
   std::vector<std::string> claims;  // names to disclose (NATTR of them)
   std::string vct;                  // expected credential type
   std::string nonce, aud;           // verifier-chosen KB freshness/audience
-  std::string context;              // verifier-chosen nullifier scope (context_id)
-  uint8_t nullifier[32] = {0};      // computed: SHA(secret ‖ context)
+  std::string context;              // verifier-chosen nullifier scope (string)
+  uint8_t context_hash[32] = {0};   // = SHA(context) — bound in-circuit (no truncation)
+  uint8_t nullifier[32] = {0};      // computed: SHA(secret ‖ SHA(context))
 };
 
 void push_v8(DenseFiller<Fp256Base>& f, uint8_t b) { f.push_back(b, 8, p256_base); }
@@ -659,7 +660,7 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
   std::string aud_pat = "\"aud\":\"" + c.aud + "\"";
   for (size_t i = 0; i < MAXAUD; ++i) push_v8(f, i < aud_pat.size() ? (uint8_t)aud_pat[i] : 0);
   push_v8(f, (uint8_t)aud_pat.size());
-  for (size_t i = 0; i < CTXLEN; ++i) push_v8(f, i < c.context.size() ? (uint8_t)c.context[i] : 0);
+  for (size_t i = 0; i < CTXLEN; ++i) push_v8(f, c.context_hash[i]);
   for (size_t i = 0; i < 256; ++i) f.push_back((c.nullifier[31 - i / 8] >> (i % 8)) & 1, 1, p256_base);
   f.push_back(e2);
   for (size_t s = 0; s < nattr; ++s) {
@@ -803,7 +804,7 @@ bool fill(Dense<Fp256Base>& W, bool full, const Concrete& c) {
     std::string secret_val = dj.substr(vp, SECN);
     uint8_t nmsg[SECN + CTXLEN];
     memcpy(nmsg, secret_val.data(), SECN);
-    for (size_t i = 0; i < CTXLEN; ++i) nmsg[SECN + i] = i < c.context.size() ? (uint8_t)c.context[i] : 0;
+    memcpy(nmsg + SECN, c.context_hash, CTXLEN);
     uint8_t npre[64 * NULLB]; FlatSHA256Witness::BlockWitness nbw[NULLB]; uint8_t nnumb = 0;
     FlatSHA256Witness::transform_and_witness_message(SECN + CTXLEN, nmsg, NULLB, nnumb, npre, nbw);
     for (size_t i = 0; i < 64 * NULLB; ++i) push_v8(f, npre[i]);
@@ -873,9 +874,10 @@ int main(int argc, char** argv) {
     std::string dj = b64url_decode(sd);
     size_t vp = dj.find("\"pseudonym_secret\",\"") + strlen("\"pseudonym_secret\",\"");
     std::string secret_val = dj.substr(vp, SECN);
+    ::SHA256((const uint8_t*)c.context.data(), c.context.size(), c.context_hash);  // context -> SHA(context)
     uint8_t nmsg[SECN + CTXLEN];
     memcpy(nmsg, secret_val.data(), SECN);
-    for (size_t i = 0; i < CTXLEN; ++i) nmsg[SECN + i] = i < c.context.size() ? (uint8_t)c.context[i] : 0;
+    memcpy(nmsg + SECN, c.context_hash, CTXLEN);
     ::SHA256(nmsg, SECN + CTXLEN, c.nullifier);
   }
   // [adversarial] EVIL_NULL claims a DIFFERENT nullifier for the same
@@ -905,7 +907,7 @@ int main(int argc, char** argv) {
   std::string cacheDir = (sl == std::string::npos ? std::string(".") : bindir.substr(0, sl)) + "/../circuits-cache";
   mkdir(cacheDir.c_str(), 0755);
   char geo[64]; snprintf(geo, sizeof geo, "%zua-s%zu-kb%zu-pb%zu-b%zu-e2", nattr, kMaxSHA, KBB, PB, MAXB);
-  std::string cacheFile = cacheDir + "/sdjwt-null-" + geo + ".bin";
+  std::string cacheFile = cacheDir + "/sdjwt-nullh-" + geo + ".bin";
 
   std::unique_ptr<Circuit<Fp256Base>> C;
   std::ifstream cf(cacheFile, std::ios::binary);

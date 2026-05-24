@@ -18,7 +18,9 @@ import fs from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const BIN = path.join(ROOT, 'native/sdjwt_nullifier');
+// default to the fast 2-circuit split; MONO=1 uses the single-circuit monolith
+const SPLIT = process.env.MONO !== '1';
+const BIN = path.join(ROOT, SPLIT ? 'native/sdjwt_null_split' : 'native/sdjwt_nullifier');
 const GEN = path.join(ROOT, 'tools/gen-sdjwt.mjs');
 const FIX = path.join(ROOT, 'fixtures/sdjwt.txt');
 const JWK = path.join(ROOT, 'fixtures/issuer-jwk.json');
@@ -41,8 +43,8 @@ function sh(cmd, args, env = {}) {
 function runNull(context, env = {}) {
   try {
     const out = sh(BIN, [FIX, JWK, '1700000000', CLAIMS, VCT, NONCE, AUD, context], env);
-    const m = out.match(/nullifier : ([0-9a-f]+)/);
-    return { ok: true, accept: /result: ACCEPT/.test(out), nullifier: m && m[1], out };
+    const m = out.match(/nullifier\s*: ([0-9a-f]+)/);
+    return { ok: true, accept: /ACCEPT/.test(out), nullifier: m && m[1], out };
   } catch (e) {
     const out = (e.stdout || '').toString();
     const m = out.match(/nullifier : ([0-9a-f]+)/);
