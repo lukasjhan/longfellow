@@ -87,7 +87,7 @@ The nullifier circuit reuses the credential indices (base report §6) and adds t
 - **Issuer can de-anonymize / link (P).** The issuer knows `secret`, so it can compute the nullifier for any scope → it can link a user across scopes and to identity. Same trust model as CI/DI (the authority knows). **Blind issuance** (the issuer signs a commitment to a secret it never learns) would remove this — the main future-work item.
 - **Sybil = one secret per person.** Sybil resistance is only as strong as the issuer's invariant of issuing **one `pseudonym_secret` per real person** (including across re-issuances). The circuit cannot enforce this — it is issuer policy (as with CI/DI).
 - **Fixed-length secret.** `pseudonym_secret` is a fixed 64-hex value; the issuer must honor that.
-- **mdoc not implemented.** longfellow's public mdoc API cannot expose a hidden-secret nullifier (disclosing an attribute reveals it); an mdoc nullifier needs a custom CBOR circuit.
+- **mdoc — now implemented.** longfellow's public mdoc API cannot expose a hidden-secret nullifier (disclosing an attribute reveals it), so an mdoc nullifier needs a custom circuit; that circuit now exists — see [`mdoc-nullifier_analysis-report.md`](mdoc-nullifier_analysis-report.md).
 
 ## 8. Files / run
 
@@ -107,6 +107,6 @@ native/sdjwt_null_split fixtures/sdjwt.txt fixtures/issuer-jwk.json 1700000000 \
 ## 9. Future work
 
 - **Blind issuance** → close the issuer-traceability gap (P).
-- **mdoc nullifier** (custom CBOR circuit).
+- **mdoc nullifier** (custom CBOR circuit) — ✅ done, see [`mdoc-nullifier_analysis-report.md`](mdoc-nullifier_analysis-report.md).
 - Verifier-side **context binding**: have the wallet verify a trust-anchor-signed JWT carrying the `context` (the demo passes it as a plain string).
 - Rate-limiting / one-time-use variants (cf. Semaphore, RLN, Worldcoin).

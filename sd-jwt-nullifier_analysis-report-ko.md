@@ -87,7 +87,7 @@ nullifier 회로는 크레덴셜 인덱스(기반 보고서 §6)를 재사용하
 - **발급자가 역추적/연결 가능 (P).** 발급자가 `secret`을 알아 임의 scope nullifier 계산 → 사용자를 scope 간·신원과 연결 가능. CI/DI와 동일 신뢰모델(기관이 앎). **블라인드 발급**(발급자가 모른 채 commitment 서명)이 이를 제거 — 최대 미래 과제.
 - **Sybil = 1인 1 secret.** Sybil 저항은 발급자가 **1인당 `pseudonym_secret` 하나**(재발급 포함)를 발급한다는 불변식만큼만 강함. 회로가 강제 못 함 — 발급자 정책(CI/DI와 동일).
 - **고정 길이 secret.** `pseudonym_secret`은 고정 64-hex; 발급자가 준수해야 함.
-- **mdoc 미구현.** longfellow 공개 mdoc API로는 숨긴-secret nullifier 불가(속성 공개=값 노출) → 커스텀 CBOR 회로 필요.
+- **mdoc — 구현 완료.** longfellow 공개 mdoc API로는 숨긴-secret nullifier 불가(속성 공개=값 노출)라 커스텀 회로가 필요했고, 이제 그 회로가 존재 — [`mdoc-nullifier_analysis-report-ko.md`](mdoc-nullifier_analysis-report-ko.md) 참조.
 
 ## 8. 파일 / 실행
 
@@ -107,6 +107,6 @@ native/sdjwt_null_split fixtures/sdjwt.txt fixtures/issuer-jwk.json 1700000000 \
 ## 9. 미래 과제
 
 - **블라인드 발급** → 발급자 비추적 갭(P) 닫기.
-- **mdoc nullifier**(커스텀 CBOR 회로).
+- **mdoc nullifier**(커스텀 CBOR 회로) — ✅ 완료, [`mdoc-nullifier_analysis-report-ko.md`](mdoc-nullifier_analysis-report-ko.md) 참조.
 - 검증자측 **context 바인딩**: 월렛이 trust-anchor 서명 JWT의 `context`를 검증(데모는 string으로 전달).
 - rate-limiting / 일회용 변형(cf. Semaphore, RLN, Worldcoin).
