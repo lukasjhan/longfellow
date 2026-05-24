@@ -235,39 +235,9 @@ EUDI PID is issued by 27+ member states, each with multiple issuers and periodic
 
 Near-term, **A + Trusted List** (rotation handled by validity periods) is realistic and is what this implementation maps to; **C** is the future work for country-hiding.
 
-### 8.3 Extension: pseudonymous nullifier (CI/DI) — design & soundness audit
+### 8.3 Extension: pseudonymous nullifier (CI/DI)
 
-A research extension makes the credential **pseudonymous** via a **nullifier** — the ZK analogue of Korea's CI/DI. Prototype: `native/sdjwt_nullifier.cc` (monolith) and `native/sdjwt_null_split.cc` (2-circuit split); demo `pnpm run demo:nullifier`.
-
-**Construction.** The issuer embeds a per-person `pseudonym_secret` as an `_sd` claim (issuer-committed, so the holder cannot choose it). For a verifier-chosen `context`, the circuit proves in ZK `nullifier == SHA256( secret ‖ SHA256(context) )`, revealing only `nullifier` and the public `context_hash = SHA256(context)`; the secret stays hidden (proven via `_sd` membership). Mapping:
-- **scoped** (`context` = service/verifier id) → per-service, unlinkable across services = **DI**.
-- **global** (empty context) → same value everywhere = **CI**.
-
-**Properties (verified by the demo).** Same `(secret, context)` → **same** nullifier (duplicate/Sybil detection); different context → **different** (scopes unlinkable); a forged nullifier → **REJECT** (one nullifier per scope).
-
-**Architecture / performance.** The nullifier SHA lives in the GF(2¹²⁸) hash circuit of the split (cheap); the signature circuit is unchanged. Split: prove ~1.6 s, bundle ~387 KB; monolith ~13 s. Both produce an identical nullifier for the same `(secret, context)`.
-
-**Soundness audit.** A malicious prover must not (S1) make ≥2 nullifiers per scope, (S2) use a non-committed secret, (S3) collide distinct scopes; plus (P) privacy.
-
-| # | Property | Verdict |
-|---|---|---|
-| S1 | determinism (one nullifier per scope) | ✅ **guaranteed** — the whole SHA preimage is bound (secret + context_hash + canonical padding) and `null_nb` is fixed; the secret-extraction position is **uniquely forced** since base64url/hex exclude the anchor chars `"`/`,` |
-| S2 | secret is issuer-committed | ✅ `_sd` membership → signed payload → ECDSA chain |
-| S3 | scope separation | ✅ after fix (below) |
-| P | issuer non-traceability | ⚠️ limited (below) |
-
-- **[S3] found & fixed.** The first version padded/truncated `context` into a fixed 64-byte field, so distinct scopes sharing the first 64 bytes collided (measured: `A×64` and `A×64+X` gave the same nullifier). **Fix:** bind `SHA256(context)` instead of the raw context (length-independent), `CTXLEN 64→32`, `NULLB 3→2`; re-measured distinct.
-- **Limitations (not fixable in-circuit).** The issuer knows `secret`, so it can compute any scope's nullifier → **the issuer can de-anonymize/link** (same trust model as CI/DI; **blind issuance** would remove this — future work). Sybil resistance assumes the issuer issues **one secret per person** (across re-issuances). `pseudonym_secret` is a fixed 64-hex value. An **mdoc** nullifier is unimplemented (longfellow's public mdoc API cannot expose a hidden-secret nullifier; needs a custom circuit).
-
-**Free-index audit (nullifier-specific).** The nullifier circuit reuses the credential indices (§6) and adds these; audited separately since it is a distinct circuit:
-
-| Index | Points at | Safety basis | Verdict |
-|---|---|---|---|
-| `sec_sd_idx` | `_sd` entry for the secret | `base64decode(window) == SHA(secret_disclosure)` → SHA preimage/collision (same as `sd_idx`) | ✅ (hash) |
-| `sec_shift` | secret value offset in the disclosure | `","pseudonym_secret","` literal anchor; **uniquely forced** (base64url/hex exclude `"`/`,`) | ✅ guaranteed |
-| `sec_len` | decoded disclosure length | wrong length → anchor/membership fails | ✅ |
-
-> `null_nb` is asserted `== NULLB` and `null_pre` is fully bound to `secret ‖ context_hash ‖ canonical-padding`, so the nullifier SHA input is constant (no free witness). `context_hash` is a public input, not a witness.
+A pseudonymous-credential extension (the ZK analogue of CI/DI) is built **on top of** this credential proof: the issuer commits a `pseudonym_secret` in `_sd`, and the circuit proves `nullifier == SHA256(secret ‖ SHA256(context))` revealing only the nullifier. Its design, CI/DI mapping, performance, and **its own soundness audit** (incl. the S3 context-collision fix and a nullifier-specific free-index table) are in a dedicated report: **[`sd-jwt-nullifier_analysis-report.md`](sd-jwt-nullifier_analysis-report.md)**.
 
 ---
 

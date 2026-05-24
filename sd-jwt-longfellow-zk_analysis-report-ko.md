@@ -235,39 +235,9 @@ EUDI PID는 27개국+ 발급, 각국 다발급자 + 주기적 로테이션 → �
 
 근시일엔 **A + Trusted List**(로테이션=유효기간 처리)가 현실적이고 이 구현이 거기 해당. **C** 가 국가 은닉을 위한 미래 과제.
 
-### 8.3 확장: 가명 nullifier (CI/DI) — 설계 & soundness 감사
+### 8.3 확장: 가명 nullifier (CI/DI)
 
-크레덴셜을 **가명형**으로 만드는 연구 확장 — 한국 CI/DI의 ZK 대응물. 프로토타입: `native/sdjwt_nullifier.cc`(monolith), `native/sdjwt_null_split.cc`(2회로 split); 데모 `pnpm run demo:nullifier`.
-
-**구성.** 발급자가 1인당 `pseudonym_secret`을 `_sd` claim으로 박음(발급자 커밋 → 홀더가 못 고름). 검증자가 정한 `context`에 대해 회로가 ZK로 `nullifier == SHA256( secret ‖ SHA256(context) )` 를 증명, 공개되는 건 `nullifier`와 `context_hash = SHA256(context)`뿐(secret은 `_sd` 멤버십으로 숨김). 대응:
-- **scoped**(`context`=서비스/검증자 id) → 서비스별, 서비스 간 비연결 = **DI**.
-- **global**(빈 context) → 모든 곳 같은 값 = **CI**.
-
-**속성(데모로 검증).** 같은 `(secret, context)` → **같은** nullifier(중복/Sybil 탐지); 다른 context → **다름**(scope 비연결); 위조 nullifier → **REJECT**(scope당 하나).
-
-**아키텍처/성능.** nullifier SHA를 split의 GF(2¹²⁸) 해시 회로에 둠(저렴), 서명 회로는 불변. split: prove ~1.6초, 번들 ~387KB; monolith ~13초. 같은 `(secret, context)`에 양쪽 동일 nullifier.
-
-**soundness 감사.** 악성 증명자가 (S1) scope당 2개 이상 nullifier 생성, (S2) 미커밋 secret 사용, (S3) 다른 scope 충돌을 못 하게 + (P) 프라이버시.
-
-| # | 속성 | 판정 |
-|---|---|---|
-| S1 | 결정성(scope당 nullifier 하나) | ✅ **보장** — SHA preimage 전체 바인딩(secret+context_hash+표준패딩) + `null_nb` 고정; secret 추출 위치가 base64url/hex가 앵커문자 `"`/`,`를 배제해 **유일 강제** |
-| S2 | secret 발급자 커밋 | ✅ `_sd` 멤버십 → 서명 payload → ECDSA 체인 |
-| S3 | scope 분리 | ✅ 수정 후(아래) |
-| P | 발급자 비추적 | ⚠️ 한계(아래) |
-
-- **[S3] 발견·수정.** 초기엔 `context`를 고정 64B로 잘라/패딩 → 앞 64B 공유 scope가 충돌(실측: `A×64` 와 `A×64+X` 가 같은 nullifier). **수정:** raw context 대신 `SHA256(context)`를 바인딩(길이 무관), `CTXLEN 64→32`, `NULLB 3→2`; 재측정 시 서로 다름.
-- **한계(회로로 못 막음).** 발급자가 `secret`을 알아 임의 scope nullifier 계산 가능 → **발급자가 역추적/연결** 가능(CI/DI와 동일 신뢰모델; **블라인드 발급**이 제거 — 미래). Sybil 저항은 발급자가 **1인당 secret 하나**(재발급 포함) 발급 가정. `pseudonym_secret`은 고정 64-hex. **mdoc** nullifier는 미구현(longfellow 공개 mdoc API로는 숨긴-secret nullifier 불가, 커스텀 회로 필요).
-
-**Free-index 감사 (nullifier 전용).** nullifier 회로는 크레덴셜 인덱스(§6)를 재사용하고 아래를 추가 — 별개 회로라 따로 감사:
-
-| 인덱스 | 가리키는 곳 | 안전 근거 | 판정 |
-|---|---|---|---|
-| `sec_sd_idx` | secret의 `_sd` 항목 | `base64decode(창) == SHA(secret_disclosure)` → SHA 역상/충돌 (`sd_idx`와 동일) | ✅ (해시) |
-| `sec_shift` | 디스클로저 내 secret 값 오프셋 | `","pseudonym_secret","` 리터럴 앵커; base64url/hex가 `"`·`,` 배제해 **유일 강제** | ✅ 보장 |
-| `sec_len` | 디코드된 디스클로저 길이 | 틀리면 앵커/멤버십 실패 | ✅ |
-
-> `null_nb`는 `== NULLB`로 강제되고 `null_pre`는 `secret ‖ context_hash ‖ 표준패딩`에 전부 바인딩 → nullifier SHA 입력이 상수(자유 witness 없음). `context_hash`는 witness가 아니라 공개입력.
+이 크레덴셜 증명 **위에** 가명 크리덴셜 확장(CI/DI의 ZK 대응물)을 얹습니다: 발급자가 `pseudonym_secret`을 `_sd`에 커밋하고, 회로가 `nullifier == SHA256(secret ‖ SHA256(context))` 를 증명하되 nullifier만 공개. 설계·CI/DI 대응·성능·**자체 soundness 감사**(S3 context 충돌 수정 + nullifier 전용 free-index 표 포함)는 별도 보고서에 있습니다: **[`sd-jwt-nullifier_analysis-report-ko.md`](sd-jwt-nullifier_analysis-report-ko.md)**.
 
 ---
 
