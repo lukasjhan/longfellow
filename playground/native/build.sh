@@ -96,4 +96,7 @@ echo ">> compiling sha_bench (circuit-size: Fp256 vs GF(2^128))"
 # --- M7-3: the full two-circuit + MAC split (sig + hash), present + verify -----
 echo ">> compiling sdjwt_split (Fp256 sig + GF(2^128) hash, MAC-linked)"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_split.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_split"
+# --- nullifier prototype: full SD-JWT-VC proof + pseudonymous nullifier (CI/DI) ---
+echo ">> compiling sdjwt_nullifier (SD-JWT-VC + pseudonym nullifier)"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_nullifier.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_nullifier"
 echo ">> done: ... sdjwt_full, sha_bench, sdjwt_sig, sdjwt_hash, sdjwt_split"

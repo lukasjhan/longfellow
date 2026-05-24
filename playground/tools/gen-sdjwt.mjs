@@ -54,6 +54,10 @@ async function main() {
     makeDisclosure('birthdate', '1963-08-12'),   // date (string)
     makeDisclosure('age_over_18', true),         // boolean
     makeDisclosure('height', 175),               // number
+    // per-person secret for pseudonymous nullifiers (CI/DI-like). Fixed 64 hex
+    // chars (32 bytes). Issuer-committed (in _sd) so the holder can't choose it →
+    // nullifier = SHA(secret ‖ context_id) is Sybil-sound. Stays hidden in ZK.
+    makeDisclosure('pseudonym_secret', randomBytes(32).toString('hex')),
     ...(BIG ? [
       makeDisclosure('age_over_21', true),
       makeDisclosure('age_in_years', 61),
