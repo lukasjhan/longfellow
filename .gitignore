@@ -19,6 +19,7 @@ playground/native/sdjwt_hash
 playground/native/sdjwt_split
 playground/native/sdjwt_nullifier
 playground/native/sdjwt_null_split
+playground/native/mdoc_null_split
 playground/native/*.o
 
 # --- node ---

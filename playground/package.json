@@ -18,6 +18,7 @@
     "demo:sdjwt-zk": "node src/demo-sdjwt-zk.js",
     "demo:sdjwt-split": "node src/demo-sdjwt-split.js",
     "demo:nullifier": "node src/demo-nullifier.js",
+    "demo:mdoc-nullifier": "node src/demo-mdoc-nullifier.js",
     "issue": "node src/playground.js issue",
     "present": "node src/playground.js present",
     "verify": "node src/playground.js verify",

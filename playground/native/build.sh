@@ -101,4 +101,7 @@ echo ">> compiling sdjwt_nullifier (monolith: SD-JWT-VC + pseudonym nullifier)"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_nullifier.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_nullifier"
 echo ">> compiling sdjwt_null_split (2-circuit split: nullifier in GF(2^128) hash)"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_null_split.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_null_split"
+# --- mdoc nullifier: real ISO 18013-5 mdoc 2-circuit present/verify + pseudonym nullifier ---
+echo ">> compiling mdoc_null_split (real mdoc: MdocSignature + MdocHash + pseudonym nullifier)"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/mdoc_null_split.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/mdoc_null_split"
 echo ">> done: ... sdjwt_full, sha_bench, sdjwt_sig, sdjwt_hash, sdjwt_split"
