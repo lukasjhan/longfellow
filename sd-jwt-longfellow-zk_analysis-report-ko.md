@@ -3,7 +3,7 @@
 > 대상: `playground/` — Longfellow-ZK의 mdoc 선택공개 ZK 기법을 **SD-JWT-VC**에 이식한 구현
 > 위치: `/home/unknown/longfellow/playground`
 > 작성일: 2026-05-24 · 상태: 보안 리뷰 후 하드닝 진행 중
-> 상위 라이브러리 분석은 [`longfellow-zk_분석보고서-ko.md`](longfellow-zk_분석보고서-ko.md) 참조
+> 상위 라이브러리 분석은 [`longfellow-zk_analysis-report-ko.md`](longfellow-zk_analysis-report-ko.md) 참조
 
 ---
 

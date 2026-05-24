@@ -3,7 +3,7 @@
 > Target: `playground/` — implementation porting Longfellow-ZK's mdoc selective-disclosure ZK technique to **SD-JWT-VC**
 > Location: `/home/unknown/longfellow/playground`
 > Date: 2026-05-24 · Status: hardening in progress after security review
-> For analysis of the upstream library, see [`longfellow-zk_분석보고서.md`](longfellow-zk_분석보고서.md)
+> For analysis of the upstream library, see [`longfellow-zk_analysis-report.md`](longfellow-zk_analysis-report.md)
 
 ---
 

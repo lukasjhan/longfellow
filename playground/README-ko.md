@@ -215,7 +215,7 @@ playground/
 4. **Verify** — `verify`가 `run_mdoc_verifier`로 두 증명을 모두 검사. 둘 다
    통과해야 ACCEPT.
 
-상세 분석은 상위 폴더의 [`../longfellow-zk_분석보고서-ko.md`](../longfellow-zk_분석보고서-ko.md) 참고.
+상세 분석은 상위 폴더의 [`../longfellow-zk_analysis-report-ko.md`](../longfellow-zk_analysis-report-ko.md) 참고.
 
 ---
 

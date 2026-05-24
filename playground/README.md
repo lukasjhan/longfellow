@@ -215,7 +215,7 @@ playground/
 4. **Verify** — `verify` checks both proofs with `run_mdoc_verifier`. Both must
    pass to ACCEPT.
 
-For a detailed analysis, see [`../longfellow-zk_분석보고서.md`](../longfellow-zk_분석보고서.md) in the parent folder.
+For a detailed analysis, see [`../longfellow-zk_analysis-report.md`](../longfellow-zk_analysis-report.md) in the parent folder.
 
 ---
 

@@ -16,7 +16,7 @@
 ```
 longfellow/
 ├── README.md                    # (이 파일) 전체 개요·재현법
-├── longfellow-zk_분석보고서.md   # 소스코드 심층 분석 (한글, 12장)
+├── longfellow-zk_analysis-report.md   # 소스코드 심층 분석 (한글, 12장)
 ├── longfellow-zk/               # 업스트림 git 서브모듈 (SHA 고정; --recurse-submodules로 init)
 ├── playground/                  # ⭐ Node.js 플레이그라운드 (issue→present→verify)
 │   ├── native/longfellow_cli.cc #   longfellow C API 래퍼 CLI
@@ -45,7 +45,7 @@ ZK로 증명"** 을 두 빌딩블록으로 해결합니다.
 - `Fp256` 위의 **ECDSA 서명 회로** (`circuits/ecdsa/`)
 - `GF(2^128)` 위의 **SHA-256 + CBOR 해시 회로** (`circuits/sha/`, `cbor_parser_v2/`)
 
-> 📖 **자세한 동작 원리·코드 분석은 [`longfellow-zk_분석보고서-ko.md`](longfellow-zk_분석보고서-ko.md) 참고.**
+> 📖 **자세한 동작 원리·코드 분석은 [`longfellow-zk_analysis-report-ko.md`](longfellow-zk_analysis-report-ko.md) 참고.**
 
 ### 지원 포맷 현황 (코드 기준)
 

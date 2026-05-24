@@ -15,7 +15,7 @@ A working repository that **analyzes** [google/longfellow-zk](https://github.com
 ```
 longfellow/
 ├── README.md                    # (this file) overall overview · reproduction
-├── longfellow-zk_분석보고서.md   # in-depth source code analysis (12 chapters; Korean: -ko.md)
+├── longfellow-zk_analysis-report.md   # in-depth source code analysis (12 chapters; Korean: -ko.md)
 ├── longfellow-zk/               # upstream as a git submodule (pinned SHA; init via --recurse-submodules)
 ├── playground/                  # ⭐ Node.js playground (issue→present→verify)
 │   ├── native/longfellow_cli.cc #   longfellow C API wrapper CLI
@@ -45,7 +45,7 @@ The most important design: it splits mdoc verification into **two circuits**, op
 - **ECDSA signature circuit** over `Fp256` (`circuits/ecdsa/`)
 - **SHA-256 + CBOR hash circuit** over `GF(2^128)` (`circuits/sha/`, `cbor_parser_v2/`)
 
-> 📖 **For a detailed explanation of how it works and the code analysis, see [`longfellow-zk_분석보고서.md`](longfellow-zk_분석보고서.md).**
+> 📖 **For a detailed explanation of how it works and the code analysis, see [`longfellow-zk_analysis-report.md`](longfellow-zk_analysis-report.md).**
 
 ### Supported format status (per code)
 
