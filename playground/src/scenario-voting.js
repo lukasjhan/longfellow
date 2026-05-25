@@ -4,7 +4,7 @@
 // and never learned the secret). At a polling station the voter proves, in ONE
 // zero-knowledge proof:
 //   * age_over_18 == true            (eligible: adult)
-//   * resident_city == "김포시"       (eligible: lives in this district)
+//   * resident_city == "Seoul"        (eligible: lives in this district)
 //   * a DI nullifier scoped to THIS election = SHA(secret ‖ SHA(election_id))
 // revealing nothing else (name, DOB, signature, the secret all stay hidden).
 //
@@ -114,10 +114,10 @@ async function main() {
     return `✅ 투표 완료 (nullifier 등록) — ${who}`;
   }
 
-  const ELECTION = 'kr-2026-local-election:gimpo';   // the DI scope for this poll
+  const ELECTION = 'kr-2026-local-election:seoul';   // the DI scope for this poll
   const districtRequire = [
     { claim: 'age_over_18' },                        // must be an adult
-    { claim: 'resident_city', equals: '김포시' },     // must live in 김포시
+    { claim: 'resident_city', equals: 'Seoul' },     // must live in Seoul
   ];
 
   console.log('\n');
@@ -127,7 +127,7 @@ async function main() {
 
   // [1] ISSUE
   line();
-  console.log('  [1] 발급 — 월렛에 mdoc 저장 (성인, 김포시 거주, 가명 커밋먼트 C)');
+  console.log('  [1] 발급 — 월렛에 mdoc 저장 (성인, Seoul 거주, 가명 커밋먼트 C)');
   line();
   if (fs.existsSync(path.join(ROOT, 'node_modules'))) {
     try { sh('node', [GEN]); console.log('  발급 완료 → fixtures/mdoc-blind.bin (발급자는 secret을 모름)'); }
@@ -140,7 +140,7 @@ async function main() {
   line();
   const ecRequest = await new SignJWT({
     purpose: '2026 지방선거 투표소 본인확인',
-    district: '김포시',
+    district: 'Seoul',
     require: districtRequire,
     nullifier_context: ELECTION,           // the DI scope = this election
     nonce: 'poll-nonce-' + Date.now(),
@@ -153,11 +153,11 @@ async function main() {
 
   // [3] FIRST VOTE
   line();
-  console.log('  [3] 첫 투표 — 월렛이 ZK 제출 (성인 + 김포 거주 + 선거 scope nullifier)');
+  console.log('  [3] 첫 투표 — 월렛이 ZK 제출 (성인 + Seoul 거주 + 선거 scope nullifier)');
   line();
   const v1 = await walletHandleRequest(ecRequest);
   console.log(`  요청검증: ${v1.ok ? 'OK (신뢰된 선관위)' : '거부'}`);
-  console.log(`  ZK 증명 : ${v1.accept ? 'ACCEPT (성인✅ 김포거주✅)' : 'REJECT'}`);
+  console.log(`  ZK 증명 : ${v1.accept ? 'ACCEPT (성인✅ Seoul거주✅)' : 'REJECT'}`);
   console.log(`  nullifier: ${v1.nullifier}`);
   console.log('  선관위:', ecCountVote(v1, '유권자(첫 방문)'));
   if (!v1.accept || !seen.has(v1.nullifier)) throw new Error('first vote should be counted');
@@ -173,12 +173,12 @@ async function main() {
 
   // [5] ADDRESS FORGERY — same voter tries to vote as a Seoul resident
   line();
-  console.log('  [5] 주소 위조 시도 — 김포 자격증명으로 "서울시" 거주를 주장');
+  console.log('  [5] 주소 위조 시도 — Seoul 자격증명으로 "Busan" 거주를 주장');
   line();
   const forged = zkPresent(
-    [{ id: 'age_over_18', hex: CBOR_TRUE }, { id: 'resident_city', hex: cborText('서울시') }],
-    'kr-2026-local-election:seoul');
-  console.log(`  ZK 증명 : ${forged.accept ? 'ACCEPT ❌ (주소 위조 성공?!)' : 'REJECT ✅ (자격증명은 김포시 — 값 불일치)'}`);
+    [{ id: 'age_over_18', hex: CBOR_TRUE }, { id: 'resident_city', hex: cborText('Busan') }],
+    'kr-2026-local-election:busan');
+  console.log(`  ZK 증명 : ${forged.accept ? 'ACCEPT ❌ (주소 위조 성공?!)' : 'REJECT ✅ (자격증명은 Seoul — 값 불일치)'}`);
   if (forged.accept) throw new Error('SOUNDNESS: forged address accepted!');
 
   // [6] THIRD-PARTY HARVEST — a data broker tries to learn the nullifier

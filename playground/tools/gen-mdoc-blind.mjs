@@ -90,7 +90,7 @@ async function main() {
   const issuer = new Issuer(DOCTYPE, ctx);
   issuer.addIssuerNamespace(NS, {
     family_name: 'Mustermann', given_name: 'Erika', age_over_18: true, height: 175,
-    resident_city: '김포시',            // address attribute (for the voting scenario)
+    resident_city: 'Seoul',             // address attribute (for the voting scenario)
     pseudonym_commitment: commitment,   // Buffer → CBOR byte string
   });
   const issuerSigned = await issuer.sign({
