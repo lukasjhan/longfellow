@@ -111,7 +111,7 @@ The block adds two host-provided indices; both are constrained so a wrong value 
 
 Same model as the SD-JWT nullifier (see that report §7):
 
-- **Issuer can de-anonymize / link (P).** The issuer knows `secret`, so it can compute the nullifier for any scope. Same trust model as CI/DI. **Blind issuance** (the issuer signs a commitment to a secret it never learns) would remove this — the main future-work item.
+- **Issuer can de-anonymize / link (P).** The issuer knows `secret`, so it can compute the nullifier for any scope. Same trust model as CI/DI. **Blind issuance** (the issuer signs a commitment to a secret it never learns) removes this — **now implemented, see §9**.
 - **Sybil = one secret per person.** Only as strong as the issuer's policy of issuing one `pseudonym_secret` per real person across re-issuances. Not enforceable in-circuit (as with CI/DI).
 - **Fixed format.** `pseudonym_secret` is a fixed 64-hex value and its `IssuerSignedItem` must fit `SECB = 3` SHA blocks; `elementIdentifier` must immediately precede `elementValue` (the contiguous-anchor assumption). `@lukas.j.han/mdoc` satisfies all of these; an issuer that reorders or pads differently would need the anchor / `SECB` adjusted.
 - **Device binding.** The proof is a faithful mdoc presentation (device signature over the session transcript is verified), so it is not replayable across transcripts; but unlinkability still reveals the issuer's public key (see base report).
@@ -133,7 +133,82 @@ native/mdoc_null_split fixtures/mdoc.bin fixtures/mdoc-issuer.json \
 
 ## 8. Future work
 
-- **Blind issuance** → close the issuer-traceability gap (P), shared with the SD-JWT version.
+- **Blind issuance** → close the issuer-traceability gap (P) — ✅ **done, see §9**.
 - **Length-agnostic / multiple secrets** — generalize the anchor + `SECB` to other issuer encodings.
 - Verifier-side **context binding** — carry the `context` in a trust-anchor-signed structure rather than a plain string.
+- **Issuance-time well-formedness proof** for blind issuance (issuer signs only single, well-shaped commitments) — see §9.5.
 - Rate-limiting / one-time-use variants (cf. Semaphore, RLN).
+
+---
+
+## 9. Advanced — blind issuance (removes issuer traceability)
+
+§1–8 embed the secret in the credential, so the **issuer knows it** and can compute any scope's nullifier (limitation **P**, §6). This section evolves the construction so the **issuer never learns the secret**, closing P. The CI/DI mapping, the commitment idea, and the full Sybil/soundness argument are shared with the SD-JWT version — see [`sd-jwt-nullifier_analysis-report.md`](sd-jwt-nullifier_analysis-report.md) §10; this section covers only what is **mdoc-specific**.
+
+Prototype: `native/mdoc_null_blind.cc`; demo `pnpm run demo:mdoc-nullifier-blind`; issuer `tools/gen-mdoc-blind.mjs`. The §1–8 files are unchanged.
+
+### 9.1 Commitment as a CBOR byte string
+
+The holder generates `secret` (32 B) + `blind` (32 B) and commits `C = SHA256(secret ‖ blind)`. The issuer signs **only** `pseudonym_commitment = C`, which `@lukas.j.han/mdoc` issues as a **CBOR byte string** (`58 20 <32 B>`) — verified empirically. This is *cleaner than the SD-JWT case*: there the commitment is base64url and must be decoded in-circuit, whereas here the 32 raw bytes sit directly in the signed item, so no decode is needed. The anchor becomes
+
+```
+71 "elementIdentifier" 74 "pseudonym_commitment" 6C "elementValue" 58 20   (54 B)
+```
+
+followed by the 32 commitment bytes. `secret`/`blind` live only on the holder side (`mdoc-holder-secret.txt`); the prover reads them via `HOLDER_SECRET`.
+
+### 9.2 What changes in `assert_nullifier` (vs §2.2)
+
+Steps (1) MSO-preimage + index range-check and (2) membership `SHA(item) ∈ MSO valueDigests` are **unchanged** — now proving the *commitment* item is issuer-signed. The rest:
+
+3. **Extraction** — shift the 54-byte anchor to the front, assert it, then take the next 32 bytes as `C`; build a `v256 cm` from them in SHA bit-order (the same reversal `MdocHash` uses for `mm`).
+4. **Opening (new)** — bind `open_pre = secret ‖ blind ‖ padding` and assert `SHA(open_pre) == cm` via one `assert_message_hash` (the expected digest *is* the extracted commitment, so no separate witness/compare is needed). Proves the holder knows `(secret, blind)` behind the issuer-committed `C`.
+5. **Nullifier** — `SHA(secret ‖ context_hash)`, fully bound; the **same `secret` wires** feed (4) and (5).
+
+Net new circuitry over §2.2 = **one SHA block (opening) + a wider anchor**; the secret is now a hidden witness (32 B) rather than extracted from the item.
+
+### 9.3 Properties (verified by `demo:mdoc-nullifier-blind`)
+
+§3, plus the decisive blind property:
+
+| Step | Check | Result |
+|---|---|---|
+| same `(secret, context)` | identical nullifier | ✅ DI dedup |
+| different `context` | different nullifier | ✅ unlinkable |
+| `EVIL_NULL` (forged nullifier) | unprovable | ✅ REJECT |
+| **`EVIL_SECRET`** (secret that doesn't open `C`) | **`eval_circuit failed`** (hash circuit) | ✅ **REJECT** |
+| `TAMPER` (flip a MAC bit) | both circuits reject | ✅ REJECT |
+
+### 9.4 Performance (measured, 1 public attr + blind nullifier)
+
+| | sig (Fp256) | hash (GF(2¹²⁸)) |
+|---|---|---|
+| ninputs | ~3.7 k | ~100 k |
+| proof | ~195 KB | ~151 KB |
+
+End to end: **prove ≈ 1.1 s, verify ≈ 0.5 s, bundle ≈ 346 KB** — essentially identical to §4 (the opening adds one SHA block in the cheap binary field). Cache `circuits-cache/mdoc-nullblind-hash-<geo>.bin`; the sig circuit (and its cache) is shared with §1–8 unchanged.
+
+### 9.5 Soundness
+
+Identical threat model and verdicts to the SD-JWT blind version ([`sd-jwt-nullifier_analysis-report.md`](sd-jwt-nullifier_analysis-report.md) §10.5): S1 (determinism) and S3 (scope) unchanged; **S2** now anchors the secret via the *commitment* (`SHA(commitment item) ∈ valueDigests → SHA(MSO)=e → issuer ECDSA`, **plus** the opening `SHA(secret‖blind)==C`); **P** is now achieved — the issuer only ever saw `C` (hiding), so it cannot compute any nullifier. Sybil still relies on the issuer's one-per-person policy (§6), independent of blinding.
+
+Free-index audit: `sec_mso` and `sec_anchor` are as §5.1 (the anchor is now 54 B ending in `58 20`; the literal anchor uniquely forces the offset, and the 32 value bytes are pinned by the opening `SHA(secret‖blind)==C` rather than a hash-attestation). `secret`/`blind` are direct hidden witnesses (no index to mispoint), shared between opening and nullifier.
+
+> Issuance-time well-formedness (the issuer should require a proof that `C` is a single, well-shaped commitment) is a separate protocol step, simplified in the demo — same as the SD-JWT version (§10.6).
+
+### 9.6 Files / run
+
+| File | Role |
+|---|---|
+| `native/mdoc_null_blind.cc` | blind variant — commitment membership + opening + nullifier (in the MdocHash circuit) |
+| `tools/gen-mdoc-blind.mjs` | holder commits `C`; issuer signs `pseudonym_commitment` (byte string) only |
+| `src/demo-mdoc-nullifier-blind.js` | `pnpm run demo:mdoc-nullifier-blind` |
+| `fixtures/mdoc-holder-secret.txt` | holder-only `secret_hex ‖ blind_hex` (never sent to the issuer) |
+
+```bash
+# Direct call (reads the holder secret via HOLDER_SECRET = secret_hex ‖ blind_hex):
+HOLDER_SECRET=fixtures/mdoc-holder-secret.txt \
+native/mdoc_null_blind fixtures/mdoc-blind.bin fixtures/mdoc-blind-issuer.json \
+  fixtures/mdoc-blind-transcript.bin 2026-06-01T00:00:00Z age_over_18 f5 context-A
+# env: EVIL_NULL=1 (forged nullifier), EVIL_SECRET=1 (secret doesn't open C), TAMPER=1 (break MAC)
+```

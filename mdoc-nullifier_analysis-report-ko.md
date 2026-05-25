@@ -111,7 +111,7 @@ D8 18 58 AA  A4                              ; tag24, bstr(170), map(4)
 
 SD-JWT nullifier와 동일 모델(해당 보고서 §7 참조):
 
-- **발급자가 비익명화/연결 가능 (P).** 발급자는 `secret`을 알아 임의 scope의 nullifier를 계산할 수 있음. CI/DI와 같은 신뢰모델. **블라인드 발급**(발급자가 학습하지 않는 secret의 커밋에 서명)이 이를 제거 — 주요 향후 과제.
+- **발급자가 비익명화/연결 가능 (P).** 발급자는 `secret`을 알아 임의 scope의 nullifier를 계산할 수 있음. CI/DI와 같은 신뢰모델. **블라인드 발급**(발급자가 학습하지 않는 secret의 커밋에 서명)이 이를 제거 — **구현 완료, §9 참조**.
 - **Sybil = 1인 1 secret.** 발급자가 "재발급 포함 1인당 `pseudonym_secret` 하나" 정책을 지키는 만큼만 강함. 회로로 강제 불가(CI/DI와 동일).
 - **고정 포맷.** `pseudonym_secret`은 고정 64-hex 값이고 그 `IssuerSignedItem`은 `SECB = 3` SHA블록에 맞아야 하며 `elementIdentifier`가 `elementValue` 바로 앞이어야 함(연속-앵커 가정). `@lukas.j.han/mdoc`는 모두 충족; 순서/패딩이 다른 발급기는 앵커/`SECB` 조정 필요.
 - **디바이스 결속.** 본 증명은 충실한 mdoc 제시(세션 transcript에 대한 디바이스 서명 검증)라 transcript 간 재생 불가; 다만 비연결성은 여전히 발급자 공개키를 드러냄(기반 보고서 참조).
@@ -133,7 +133,82 @@ native/mdoc_null_split fixtures/mdoc.bin fixtures/mdoc-issuer.json \
 
 ## 8. 향후 과제
 
-- **블라인드 발급** → 발급자 추적성 격차(P) 해소, SD-JWT판과 공유.
+- **블라인드 발급** → 발급자 추적성 격차(P) 해소 — ✅ **완료, §9 참조**.
 - **길이 무관 / 다중 secret** — 앵커 + `SECB`를 다른 발급기 인코딩으로 일반화.
 - 검증자측 **context 결속** — `context`를 평문 문자열 대신 trust-anchor 서명 구조로 전달.
+- 블라인드 발급의 **발급-시점 well-formedness 증명**(발급자가 단일·올바른 커밋먼트만 서명) — §9.5 참조.
 - 횟수제한 / 1회용 변형 (Semaphore, RLN 참조).
+
+---
+
+## 9. 발전 — 블라인드 발급 (발급자 역추적 제거)
+
+§1–8은 secret을 크레덴셜에 박으므로 **발급자가 secret을 알고** 임의 scope nullifier를 계산할 수 있음(한계 **P**, §6). 이 섹션은 **발급자가 secret을 절대 모르도록** 발전시켜 P를 닫음. CI/DI 대응, 커밋먼트 아이디어, Sybil/soundness 논증은 SD-JWT판과 공유 — [`sd-jwt-nullifier_analysis-report-ko.md`](sd-jwt-nullifier_analysis-report-ko.md) §10 참조; 이 섹션은 **mdoc 고유**만 다룸.
+
+프로토타입: `native/mdoc_null_blind.cc`; 데모 `pnpm run demo:mdoc-nullifier-blind`; 발급기 `tools/gen-mdoc-blind.mjs`. §1–8 파일은 무수정.
+
+### 9.1 CBOR 바이트 스트링 커밋먼트
+
+홀더가 `secret`(32B)+`blind`(32B)를 생성해 `C = SHA256(secret ‖ blind)`를 커밋. 발급자는 `pseudonym_commitment = C`만 서명하고, `@lukas.j.han/mdoc`는 이를 **CBOR 바이트 스트링**(`58 20 <32B>`)으로 발급(실증 확인). 이는 *SD-JWT보다 깔끔*함: SD-JWT는 커밋먼트가 base64url이라 회로에서 디코드해야 하지만, 여기선 32 raw 바이트가 서명된 item에 그대로 들어가 디코드가 불필요. 앵커는
+
+```
+71 "elementIdentifier" 74 "pseudonym_commitment" 6C "elementValue" 58 20   (54B)
+```
+
+뒤에 32바이트 커밋먼트가 따름. `secret`/`blind`는 홀더 측(`mdoc-holder-secret.txt`)에만 있고, 증명자는 `HOLDER_SECRET`로 읽음.
+
+### 9.2 `assert_nullifier` 변경점 (§2.2 대비)
+
+(1) MSO-preimage + 인덱스 범위검사, (2) 멤버십 `SHA(item) ∈ MSO valueDigests`는 **불변** — 이제 *커밋먼트* item이 발급자 서명임을 증명. 나머지:
+
+3. **추출** — 54바이트 앵커를 앞으로 shift·assert 후 다음 32바이트를 `C`로 취함; 이를 SHA 비트순(`MdocHash`의 `mm`과 동일 reversal)으로 `v256 cm` 구성.
+4. **오프닝(신규)** — `open_pre = secret ‖ blind ‖ 패딩`을 바인딩하고 `SHA(open_pre) == cm`을 단일 `assert_message_hash`로 assert(기대 다이제스트가 곧 추출된 커밋먼트라 별도 witness/비교 불필요). 발급자-커밋 `C` 뒤의 `(secret, blind)`를 안다는 증명.
+5. **nullifier** — `SHA(secret ‖ context_hash)`, 전체 바인딩; (4)와 (5)가 **같은 `secret` wire** 공유.
+
+§2.2 대비 순수 신규 = **SHA 1블록(오프닝) + 더 넓은 앵커**; secret은 item에서 추출하는 대신 숨긴 witness(32B)가 됨.
+
+### 9.3 속성 (`demo:mdoc-nullifier-blind`로 검증)
+
+§3 + 결정적인 blind 속성:
+
+| 단계 | 검사 | 결과 |
+|---|---|---|
+| 같은 `(secret, context)` | 동일 nullifier | ✅ DI 중복탐지 |
+| 다른 `context` | 다른 nullifier | ✅ 비연결 |
+| `EVIL_NULL`(위조 nullifier) | 증명 불가 | ✅ REJECT |
+| **`EVIL_SECRET`**(C를 못 여는 secret) | **`eval_circuit failed`**(hash 회로) | ✅ **REJECT** |
+| `TAMPER`(MAC 1비트) | 양쪽 회로 거부 | ✅ REJECT |
+
+### 9.4 성능 (실측, 공개속성 1 + blind nullifier)
+
+| | sig (Fp256) | hash (GF(2¹²⁸)) |
+|---|---|---|
+| ninputs | ~3.7k | ~100k |
+| proof | ~195KB | ~151KB |
+
+end-to-end: **prove ≈ 1.1초, verify ≈ 0.5초, 번들 ≈ 346KB** — §4와 사실상 동일(오프닝이 싼 이진체에 SHA 1블록 추가). 캐시 `circuits-cache/mdoc-nullblind-hash-<geo>.bin`; sig 회로(및 캐시)는 §1–8과 공유·무변경.
+
+### 9.5 Soundness
+
+위협모델·판정은 SD-JWT blind판([`sd-jwt-nullifier_analysis-report-ko.md`](sd-jwt-nullifier_analysis-report-ko.md) §10.5)과 동일: S1(결정성)·S3(scope) 불변; **S2**는 이제 *커밋먼트* 경유로 secret 고정(`SHA(commitment item) ∈ valueDigests → SHA(MSO)=e → 발급자 ECDSA`, **추가로** 오프닝 `SHA(secret‖blind)==C`); **P**는 이제 달성 — 발급자는 `C`(hiding)만 봤으므로 어떤 nullifier도 계산 불가. Sybil은 여전히 발급자 1인-1개 정책(§6)에 의존(블라인딩과 독립).
+
+Free-index 감사: `sec_mso`·`sec_anchor`는 §5.1과 동일(앵커가 이제 `58 20`로 끝나는 54B; 리터럴 앵커가 오프셋을 유일 강제, 32 값바이트는 hash-attestation이 아니라 오프닝 `SHA(secret‖blind)==C`로 고정). `secret`/`blind`는 직접 숨긴 witness(잘못 가리킬 인덱스 없음), 오프닝·nullifier 공유.
+
+> 발급-시점 well-formedness(발급자가 `C`가 단일·올바른 커밋먼트임을 증명 요구)는 별도 프로토콜 단계로 데모에선 단순화 — SD-JWT판(§10.6)과 동일.
+
+### 9.6 파일 / 실행
+
+| 파일 | 역할 |
+|---|---|
+| `native/mdoc_null_blind.cc` | blind 변형 — 커밋먼트 멤버십 + 오프닝 + nullifier (MdocHash 회로) |
+| `tools/gen-mdoc-blind.mjs` | 홀더가 `C` 커밋; 발급자는 `pseudonym_commitment`(바이트 스트링)만 서명 |
+| `src/demo-mdoc-nullifier-blind.js` | `pnpm run demo:mdoc-nullifier-blind` |
+| `fixtures/mdoc-holder-secret.txt` | 홀더 전용 `secret_hex ‖ blind_hex` (발급자에 전송 안 됨) |
+
+```bash
+# 직접 호출 (홀더 secret을 HOLDER_SECRET = secret_hex ‖ blind_hex 로 읽음):
+HOLDER_SECRET=fixtures/mdoc-holder-secret.txt \
+native/mdoc_null_blind fixtures/mdoc-blind.bin fixtures/mdoc-blind-issuer.json \
+  fixtures/mdoc-blind-transcript.bin 2026-06-01T00:00:00Z age_over_18 f5 context-A
+# env: EVIL_NULL=1 (위조 nullifier), EVIL_SECRET=1 (secret이 C를 못 엶), TAMPER=1 (MAC 깨기)
+```
