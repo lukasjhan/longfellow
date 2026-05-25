@@ -84,7 +84,7 @@ nullifier 회로는 크레덴셜 인덱스(기반 보고서 §6)를 재사용하
 
 ## 7. 한계 / 신뢰가정 (회로로 못 막음)
 
-- **발급자가 역추적/연결 가능 (P).** 발급자가 `secret`을 알아 임의 scope nullifier 계산 → 사용자를 scope 간·신원과 연결 가능. CI/DI와 동일 신뢰모델(기관이 앎). **블라인드 발급**(발급자가 모른 채 commitment 서명)이 이를 제거 — 최대 미래 과제.
+- **발급자가 역추적/연결 가능 (P).** 발급자가 `secret`을 알아 임의 scope nullifier 계산 → 사용자를 scope 간·신원과 연결 가능. CI/DI와 동일 신뢰모델(기관이 앎). **블라인드 발급**(발급자가 모른 채 commitment 서명)이 이를 제거 — **구현 완료, §10 참조**.
 - **Sybil = 1인 1 secret.** Sybil 저항은 발급자가 **1인당 `pseudonym_secret` 하나**(재발급 포함)를 발급한다는 불변식만큼만 강함. 회로가 강제 못 함 — 발급자 정책(CI/DI와 동일).
 - **고정 길이 secret.** `pseudonym_secret`은 고정 64-hex; 발급자가 준수해야 함.
 - **mdoc — 구현 완료.** longfellow 공개 mdoc API로는 숨긴-secret nullifier 불가(속성 공개=값 노출)라 커스텀 회로가 필요했고, 이제 그 회로가 존재 — [`mdoc-nullifier_analysis-report-ko.md`](mdoc-nullifier_analysis-report-ko.md) 참조.
@@ -106,7 +106,109 @@ native/sdjwt_null_split fixtures/sdjwt.txt fixtures/issuer-jwk.json 1700000000 \
 
 ## 9. 미래 과제
 
-- **블라인드 발급** → 발급자 비추적 갭(P) 닫기.
+- **블라인드 발급** → 발급자 비추적 갭(P) 닫기 — ✅ **완료, §10 참조**.
 - **mdoc nullifier**(커스텀 CBOR 회로) — ✅ 완료, [`mdoc-nullifier_analysis-report-ko.md`](mdoc-nullifier_analysis-report-ko.md) 참조.
 - 검증자측 **context 바인딩**: 월렛이 trust-anchor 서명 JWT의 `context`를 검증(데모는 string으로 전달).
+- 블라인드 발급의 **발급-시점 well-formedness 증명**(발급자가 단일·올바른 형태의 커밋먼트만 서명하도록) — §10.6 참조.
 - rate-limiting / 일회용 변형(cf. Semaphore, RLN, Worldcoin).
+
+---
+
+## 10. 발전 — 블라인드 발급 (발급자 역추적 제거)
+
+위 섹션들은 secret 자체(`pseudonym_secret`)를 크레덴셜에 박으므로 **발급자가 secret을 알고** 임의 scope의 nullifier를 계산할 수 있습니다(한계 **P**, §7). 이 섹션은 **발급자가 secret을 절대 모르도록** 구성을 발전시켜 P를 닫습니다 — §4의 모든 속성과 §6의 Sybil 결속은 그대로 유지하면서.
+
+프로토타입: `native/sdjwt_null_blind.cc`; 데모 `pnpm run demo:nullifier-blind`; 발급기 `tools/gen-sdjwt-blind.mjs`. 기존 파일은 무수정.
+
+### 10.1 아이디어: 공개 말고 커밋
+
+발급자가 secret을 고르는 대신, **홀더**가 `secret`(32B)과 블라인딩 `blind`(32B)를 생성해 커밋:
+
+```
+C = SHA256( secret ‖ blind )        // 숨김(hiding) + 결속(binding) 커밋먼트
+```
+
+발급자는 `pseudonym_commitment = base64url(C)`를 `_sd` claim으로 **C만** 서명. `secret`/`blind`는 본 적 없으므로 어떤 scope에 대해서도 `SHA256(secret ‖ SHA256(context))`를 계산할 수 없습니다. (`blind`가 secret 엔트로피와 무관하게 hiding을 보장; binding은 SHA 충돌저항.) 홀더 전용 비밀(`secret ‖ blind`)은 홀더 측(`fixtures/holder-secret.txt`)에만 두고, 증명자는 `HOLDER_SECRET`로 읽음.
+
+### 10.2 회로가 증명하는 것 (GF(2¹²⁸) 해시 회로에 추가)
+
+검증자가 정한 `context`에 대해, **`secret`/`blind`를 숨긴 채** 단일 ZK 증명으로:
+
+1. **멤버십** — `SHA(commitment_disclosure) ∈ payload._sd` (C는 발급자 커밋). *§3 재사용.*
+2. **디코드** — 리터럴 앵커 `","pseudonym_commitment","` 뒤 43자 base64url 값을 추출·디코드 → `Cbytes`(32B). *기존 디코더 재사용.*
+3. **오프닝(신규)** — `open_digest = SHA256(secret ‖ blind)` **그리고** `open_digest == Cbytes`. 증명자가 발급자-커밋 `C`를 여는 `(secret, blind)`를 보유함을 증명.
+4. **nullifier** — `nullifier = SHA256(secret ‖ context_hash)`, 전체 바인딩(표준 패딩, `null_nb` 고정). *§3 재사용.*
+
+**같은 `secret` wire**가 (3)과 (4)에 모두 투입 → 발급자 커밋먼트에 묶인 값이 곧 가명에 쓰인 값. 순수 신규 회로 = **SHA 1블록(오프닝) + base64url 디코드 + 동등성 assert**; 나머지(멤버십·구조·서명·MAC 결속)는 §3/split 그대로.
+
+### 10.3 속성 (`demo:nullifier-blind`로 검증)
+
+§4 전부 + 결정적인 blind 속성:
+
+| 단계 | 검사 | 결과 |
+|---|---|---|
+| 같은 `(secret, context)` | 동일 nullifier | ✅ DI 중복탐지 |
+| 다른 `context` | 다른 nullifier | ✅ 비연결 |
+| 빈 `context` | 전역 단일 값 | ✅ CI |
+| `EVIL_NULL`(위조 nullifier) | 증명 불가 | ✅ REJECT |
+| **`EVIL_SECRET`**(C를 못 여는 secret) | **`eval_circuit failed`** | ✅ **REJECT** |
+| `TAMPER`(MAC 1비트) | 양쪽 회로 거부 | ✅ REJECT |
+
+`EVIL_SECRET`가 신규: 공개 커밋먼트 `C`는 알지만 secret을 모르는 자는 증명 불가 — (3)의 **오프닝**이 secret을 강제. 즉 정당한 홀더만 증명하는데, **발급자는 secret을 끝내 모름**.
+
+### 10.4 성능 (실측, 속성 1개 + nullifier)
+
+| | sig (Fp256) | hash (GF(2¹²⁸)) |
+|---|---|---|
+| ninputs | ~3.7k | ~185.8k |
+| proof | ~194KB | ~194KB |
+
+end-to-end: **prove ≈ 1.8초, verify ≈ 0.77초, 번들 ≈ 389KB**. 비-blind split(§5) 대비 오프닝이 싼 이진체에 SHA 1블록만 더해 비용은 사실상 동일. 캐시 `circuits-cache/sdjwt-nullblind-hash-<geo>.bin`, transcript 라벨 `"sdjwt-blind"`.
+
+### 10.5 Soundness
+
+§6과 동일 위협모델. 블라인딩 후 각 속성이 유지되는 방식:
+
+| # | 속성 | 판정(blind) |
+|---|---|---|
+| S1 | 결정성(scope당 nullifier 하나) | ✅ 불변 — `null_pre` 전체 바인딩, `null_nb` 고정(§6) |
+| S2 | secret이 발급자에 고정됨 | ✅ 이제 **커밋먼트** 경유: `SHA(commitment_disclosure) ∈ _sd` → 서명 payload → ECDSA, **추가로** 오프닝 `C == SHA(secret‖blind)`가 숨긴 secret을 그 서명된 `C`에 결속(다른 secret이면 `C`와 SHA 충돌 필요) |
+| S3 | scope 분리 | ✅ 불변 — `SHA256(context)` 바인딩 |
+| **P** | **발급자 비추적** | ✅ **이제 달성** — 발급자는 `C`(hiding)만 봤으므로 어떤 scope nullifier도 계산 불가 |
+
+> **Sybil은 여전히 발급자 정책 필요.** secret을 숨긴다고 "1인 1개"가 약해지지 **않습니다**: 그 불변식은 발급 게이트(KYC + 실신원당 크레덴셜 1개)에서 오고, 발급자가 secret을 보는지와 무관. 홀더가 자기 secret을 고르는 건 비밀번호를 스스로 정하는 것과 같아 새 신원을 주지 않음 — 크레덴셜은 인증된 그 사람에게 여전히 한 번만 발급됨.
+
+Free-index 감사(신규/변경 인덱스; `secret`/`blind`는 free index가 아닌 직접 witness):
+
+| 인덱스 | 가리키는 곳 | 안전 근거 | 판정 |
+|---|---|---|---|
+| `com_sd_idx` | 커밋먼트의 `_sd` 항목 | `base64decode(창) == SHA(commitment_disclosure)` → SHA 역상/충돌 | ✅ (해시) |
+| `com_shift` | 커밋먼트 값 오프셋 | `","pseudonym_commitment","` 리터럴 앵커; base64url이 `"`/`,` 배제 → 유일 강제 | ✅ 보장 |
+| `com_len` | 디코드된 디스클로저 길이 | 틀리면 앵커/멤버십 실패 | ✅ |
+
+> `secret`/`blind`는 오프닝(`SHA(secret‖blind)==C`)과 nullifier(`SHA(secret‖ctx_hash)==nullifier`)로 고정된 private 입력 wire; 잘못 가리킬 인덱스가 없고, 같은 `secret` wire가 양쪽에 투입됨.
+
+### 10.6 블라인드 발급이 못 푸는 것
+
+- **발급-시점 well-formedness (데모 단순화).** 실제 발급자는 발급 시 홀더가 `C`가 *단일 secret에 대한 올바른 형태의 커밋먼트*임을 증명하도록 요구해야 함 — 안 그러면 홀더가 쓰레기/여러 secret을 커밋할 수 있음. 데모 발급자는 홀더의 `C`를 신뢰; 이 발급-시점 증명은 별도 프로토콜 단계(제출 회로 아님). 위 제출 ZK는 완전 구현.
+- **자격증명 공유.** 홀더가 `(크레덴셜, secret, blind)`를 자발적으로 넘기는 건 범위 밖(device binding/KB로 완화; 모든 크레덴셜 시스템·CI/DI 공통).
+- **발급자 1인 1개 정책.** §7처럼 Sybil 저항은 발급자가 실신원당 크레덴셜 하나를 발급하는 데 여전히 의존.
+- **유추(inference).** 발급자 공개키(PID면 발급국)는 크레덴셜 증명에서 여전히 노출(기반 보고서 §8.1).
+
+### 10.7 파일 / 실행
+
+| 파일 | 역할 |
+|---|---|
+| `native/sdjwt_null_blind.cc` | blind 변형 — 커밋먼트 멤버십 + 오프닝 + nullifier (GF(2¹²⁸) 해시 회로) |
+| `tools/gen-sdjwt-blind.mjs` | 홀더가 `C=SHA(secret‖blind)` 커밋; 발급자는 `pseudonym_commitment`만 서명 |
+| `src/demo-nullifier-blind.js` | `pnpm run demo:nullifier-blind` (발급 → DI → scoping → CI → 위조/오secret/tamper 거부) |
+| `fixtures/holder-secret.txt` | 홀더 전용 `secret_hex ‖ blind_hex` (발급자에 전송 안 됨) |
+
+```bash
+# 직접 호출: <fixture> <issuer-jwk> <now> <claims> <vct> <nonce> <aud> <context>
+#   홀더 secret은 HOLDER_SECRET(= secret_hex ‖ blind_hex)로 읽음
+HOLDER_SECRET=fixtures/holder-secret.txt \
+native/sdjwt_null_blind fixtures/sdjwt-blind.txt fixtures/issuer-jwk-blind.json 1700000000 \
+  "age_over_18" "https://credentials.example/pid" 1234567890 https://verifier.example "shop-A"
+# env: EVIL_NULL=1 (위조 nullifier), EVIL_SECRET=1 (secret이 C를 못 엶), TAMPER=1 (MAC 깨기)
+```

@@ -19,6 +19,7 @@ playground/native/sdjwt_hash
 playground/native/sdjwt_split
 playground/native/sdjwt_nullifier
 playground/native/sdjwt_null_split
+playground/native/sdjwt_null_blind
 playground/native/mdoc_null_split
 playground/native/*.o
 
@@ -41,6 +42,14 @@ playground/circuits-cache/
 
 # --- generated mdoc fixtures (regenerable via gen:mdoc; contain a device key) ---
 playground/fixtures/mdoc*
+
+# --- generated blind-nullifier fixtures (regenerable via gen:sdjwt-blind;
+#     holder-secret.txt is the holder's private secret/blind, never committed) ---
+playground/fixtures/sdjwt-blind.txt
+playground/fixtures/issuer-jwk-blind.json
+playground/fixtures/holder-jwk-blind.json
+playground/fixtures/parsed-blind.json
+playground/fixtures/holder-secret.txt
 
 # --- third-party papers (links in references/README.md) ---
 references/*.pdf
