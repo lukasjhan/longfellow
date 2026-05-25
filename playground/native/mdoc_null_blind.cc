@@ -521,16 +521,28 @@ int main(int argc, char** argv) {
   { size_t i = ij.find("\"doctype\""); i = ij.find(':', i); i = ij.find('"', i) + 1;
     size_t e = ij.find('"', i); docType.assign(ij.begin() + i, ij.begin() + e); }
 
-  // public requested attribute (the disclosed one, e.g. age_over_18 = f5)
-  std::vector<RequestedAttribute> attrs(1);
-  memset(&attrs[0], 0, sizeof(RequestedAttribute));
+  // public requested attribute(s). attr_id/attr_hex are comma-separated lists, so
+  // a single proof can disclose several (e.g. "age_over_18,resident_city" with
+  // "f5,69eab980ed8facec8b9c" for true + tstr("김포시")).
+  auto split = [](const std::string& s) {
+    std::vector<std::string> out; size_t p = 0, q;
+    while ((q = s.find(',', p)) != std::string::npos) { out.push_back(s.substr(p, q - p)); p = q + 1; }
+    out.push_back(s.substr(p)); return out;
+  };
+  std::vector<std::string> ids = split(attr_id), hexes = split(attr_hex);
+  if (ids.size() != hexes.size()) { printf("ERROR: attr id/hex count mismatch\n"); return 2; }
+  size_t npub = ids.size();
+  std::vector<RequestedAttribute> attrs(npub);
   { const char* ns = "org.iso.18013.5.1";
-    memcpy(attrs[0].namespace_id, ns, strlen(ns)); attrs[0].namespace_len = strlen(ns);
-    memcpy(attrs[0].id, attr_id.data(), attr_id.size()); attrs[0].id_len = attr_id.size();
-    for (size_t i = 0; i + 1 < attr_hex.size(); i += 2) {
-      auto nyb = [](char c){ return (c<='9')?c-'0':(c|32)-'a'+10; };
-      attrs[0].cbor_value[attrs[0].cbor_value_len++] = (nyb(attr_hex[i])<<4)|nyb(attr_hex[i+1]); } }
-  size_t npub = attrs.size();
+    auto nyb = [](char c){ return (c<='9')?c-'0':(c|32)-'a'+10; };
+    for (size_t a = 0; a < npub; ++a) {
+      memset(&attrs[a], 0, sizeof(RequestedAttribute));
+      memcpy(attrs[a].namespace_id, ns, strlen(ns)); attrs[a].namespace_len = strlen(ns);
+      memcpy(attrs[a].id, ids[a].data(), ids[a].size()); attrs[a].id_len = ids[a].size();
+      const std::string& h = hexes[a];
+      for (size_t i = 0; i + 1 < h.size(); i += 2)
+        attrs[a].cbor_value[attrs[a].cbor_value_len++] = (nyb(h[i])<<4)|nyb(h[i+1]);
+    } }
 
   // ---- build the two witnesses (real mdoc parse) ----
   auto hw = std::make_unique<MdocHashWitness<P256, f_128>>(npub, p256, Fs);
