@@ -110,6 +110,9 @@ echo ">> compiling sdjwt_null_blind (blind issuance: commitment opening + nullif
 # --- mdoc nullifier: real ISO 18013-5 mdoc 2-circuit present/verify + pseudonym nullifier ---
 echo ">> compiling mdoc_null_split (real mdoc: MdocSignature + MdocHash + pseudonym nullifier)"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/mdoc_null_split.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/mdoc_null_split"
+# --- REVOCATION (real mdoc): signed-span non-membership, privacy-preserving ---
+echo ">> compiling mdoc_revoc_split (real mdoc: revocation span non-membership)"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/mdoc_revoc_split.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/mdoc_revoc_split"
 # --- BLIND-issuance mdoc nullifier: credential commits C=SHA(secret‖blind); holder proves opening + nullifier ---
 echo ">> compiling mdoc_null_blind (real mdoc blind issuance: commitment opening + nullifier)"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/mdoc_null_blind.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/mdoc_null_blind"

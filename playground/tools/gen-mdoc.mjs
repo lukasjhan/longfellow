@@ -72,6 +72,9 @@ const b64uToHex = (b64u) => '0x' + Buffer.from(b64u, 'base64url').toString('hex'
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const secret = randomBytes(32).toString('hex');
+  // per-credential revocation handle (hidden element; its valueDigests entry =
+  // 256-bit rev_id used by the signed-span revocation circuit). 64 hex chars.
+  const revid = randomBytes(32).toString('hex');
   const der = new Uint8Array(new X509Certificate(PEM).rawData);
   const certB64 = Buffer.from(der).toString('base64');
 
@@ -84,7 +87,7 @@ async function main() {
   const issuer = new Issuer(DOCTYPE, ctx);
   issuer.addIssuerNamespace(NS, {
     family_name: 'Mustermann', given_name: 'Erika', age_over_18: true, height: 175,
-    pseudonym_secret: secret,
+    pseudonym_secret: secret, revocation_id: revid,
   });
   const issuerSigned = await issuer.sign({
     signingKey: CoseKey.fromJwk(priKey),
@@ -116,7 +119,7 @@ async function main() {
   fs.writeFileSync(path.join(OUT, 'mdoc-issuer.json'), JSON.stringify({
     doctype: DOCTYPE, namespace: NS,
     pkx_hex: b64uToHex(priKey.x), pky_hex: b64uToHex(priKey.y),
-    device_jwk: devPriv, pseudonym_secret: secret,
+    device_jwk: devPriv, pseudonym_secret: secret, revocation_id: revid,
   }, null, 2));
 
   console.log('mdoc issued+presented →', path.join(OUT, 'mdoc.bin'), `(${bytes.length} bytes)`);
