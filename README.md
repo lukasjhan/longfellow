@@ -134,11 +134,19 @@ Dependencies: `cmake`, `clang-17`, system `openssl`/`zstd`/`zlib` development he
 
 ## 4. Next steps (expansion ideas)
 
-1. **Real issuance integration** — issue a new ECDSA mdoc with `@auth0/mdl` etc., then
-   present/verify with longfellow (CBOR/MSO/deviceKey/transcript structure compatibility verification needed).
-2. **Multi-attribute proof** — `gencircuit --attrs 2+` + multiple `--attr` (example index 3 = Sprind-Funke, includes `family_name` etc.).
-3. **N-API transition** — eliminate process startup overhead (in-process calls).
-4. **HTTP API** — expose NestJS endpoints (`/present`, `/verify`) like `research-eudi-module`.
+**Done since this overview was written** (see the dedicated reports):
+
+- ✅ **Real issuance** — issue + present a real mdoc (`@lukas.j.han/mdoc`, `gen:mdoc`) and a real ES256 SD-JWT-VC (`gen:sdjwt`); both accepted by longfellow.
+- ✅ **Multi-attribute proof** — disclose several attributes in one proof (mdoc and SD-JWT).
+- ✅ **SD-JWT-VC selective-disclosure ZK** — `_sd` membership, all value types + exp + Key Binding + nonce/aud ([`sd-jwt-longfellow-zk_analysis-report.md`](sd-jwt-longfellow-zk_analysis-report.md)).
+- ✅ **Pseudonymous nullifier (CI/DI)** + **blind issuance** — the issuer never learns the secret, so it cannot trace the holder ([`sd-jwt-nullifier_analysis-report.md`](sd-jwt-nullifier_analysis-report.md), [`mdoc-nullifier_analysis-report.md`](mdoc-nullifier_analysis-report.md)).
+- ✅ **Anonymous one-person-one-vote scenario** ([`voting-scenario_analysis-report.md`](voting-scenario_analysis-report.md)).
+
+**Still open:**
+
+- **Range / predicate proofs** — prove `age ≥ 18` from a hidden date of birth (the circuits currently do equality only); this is where "prove without revealing" pays off beyond `==`.
+- **N-API transition** — eliminate process-startup overhead (in-process calls).
+- **HTTP API** — expose NestJS endpoints (`/present`, `/verify`) like `research-eudi-module`.
 
 ---
 

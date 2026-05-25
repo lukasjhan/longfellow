@@ -134,11 +134,19 @@ pnpm run demo
 
 ## 4. 다음 단계 (확장 아이디어)
 
-1. **실제 발급 연동** — `@auth0/mdl` 등으로 새 ECDSA mdoc를 발급한 뒤 longfellow로
-   present/verify (CBOR/MSO/deviceKey/transcript 구조 호환성 검증 필요).
-2. **다속성 증명** — `gencircuit --attrs 2+` + `--attr` 여러 개 (예제 index 3 = Sprind-Funke, `family_name` 등 포함).
-3. **N-API 전환** — 프로세스 기동 오버헤드 제거(in-process 호출).
-4. **HTTP API화** — `research-eudi-module`처럼 NestJS 엔드포인트(`/present`, `/verify`) 노출.
+**이 개요 작성 이후 완료됨** (전용 보고서 참고):
+
+- ✅ **실제 발급** — 실제 mdoc(`@lukas.j.han/mdoc`, `gen:mdoc`)와 실제 ES256 SD-JWT-VC(`gen:sdjwt`)를 발급·제시; 둘 다 longfellow에서 통과.
+- ✅ **다속성 증명** — 한 증명에 여러 속성 공개 (mdoc·SD-JWT).
+- ✅ **SD-JWT-VC 선택공개 ZK** — `_sd` 멤버십, 전 타입 + exp + Key Binding + nonce/aud ([`sd-jwt-longfellow-zk_analysis-report-ko.md`](sd-jwt-longfellow-zk_analysis-report-ko.md)).
+- ✅ **가명 nullifier (CI/DI)** + **블라인드 발급** — 발급자가 secret을 몰라 홀더 추적 불가 ([`sd-jwt-nullifier_analysis-report-ko.md`](sd-jwt-nullifier_analysis-report-ko.md), [`mdoc-nullifier_analysis-report-ko.md`](mdoc-nullifier_analysis-report-ko.md)).
+- ✅ **익명 1인1표 투표 시나리오** ([`voting-scenario_analysis-report-ko.md`](voting-scenario_analysis-report-ko.md)).
+
+**아직 남은 것:**
+
+- **Range / 술어 증명** — 생년월일을 숨긴 채 `나이 ≥ 18` 증명 (현재 회로는 동등성만); `==`를 넘어 "드러내지 않고 증명"이 실익을 내는 지점.
+- **N-API 전환** — 프로세스 기동 오버헤드 제거(in-process 호출).
+- **HTTP API화** — `research-eudi-module`처럼 NestJS 엔드포인트(`/present`, `/verify`) 노출.
 
 ---
 
