@@ -246,3 +246,5 @@ native/sdjwt_null_blind … 1700000000 'age_over_18=true,resident_city' "https:/
 > 셸 함정: 따옴표 없이 `resident_city="Seoul"`을 쓰면 셸이 따옴표를 떼어(`resident_city=Seoul`, 문자열 아님) 패턴이 불일치 — claims 인자 전체를 `'…'`로 감쌀 것. JS에선 `JSON.stringify(value)`가 올바른 형태를 만듦(`src/scenario-voting-sdjwt-assert.js` 참고).
 >
 > 언제 뭘: 검증자가 값을 알아야 하면 **공개**(표시·범위/집합 정책); yes/no면 되고 불일치 시 값을 숨기려면 **단언**. 개념 비교: [`voting-scenario_analysis-report-ko.md`](voting-scenario_analysis-report-ko.md) §5 / §5.1.
+>
+> ⚠️ `==` 한계: **일치** 시엔 단언이 공개와 같은 정보를 드러냄(단언값이 공개입력에 있음). 동등성에서 단언의 이득은 **불일치** 시 값 숨김뿐. **성공해도** 프라이버시 이득을 보려면 range/set/파생 술어가 필요한데 여기선 미구현(동등성만).

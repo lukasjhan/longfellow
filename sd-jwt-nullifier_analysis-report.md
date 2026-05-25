@@ -246,3 +246,5 @@ native/sdjwt_null_blind … 1700000000 'age_over_18=true,resident_city' "https:/
 > Shell gotcha: an unquoted `resident_city="Seoul"` loses its quotes (→ `resident_city=Seoul`, a non-string) and the pattern won't match — wrap the whole claims arg in `'…'`. In JS, `JSON.stringify(value)` produces the right form (see `src/scenario-voting-sdjwt-assert.js`).
 >
 > When to use which: **disclose** when the verifier needs the value (display, range/set policy); **assert** when a yes/no suffices and you want to hide the value on mismatch. Conceptual comparison: [`voting-scenario_analysis-report.md`](voting-scenario_analysis-report.md) §5 / §5.1.
+>
+> ⚠️ `==` caveat: on a **match**, assert reveals the same as disclose (the asserted value is in the public input), so assert's only gain for equality is hiding the value on a **mismatch**. A privacy gain *even on success* needs range/set/derived predicates — not implemented here (equality only).
