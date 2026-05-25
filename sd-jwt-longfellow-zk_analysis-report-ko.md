@@ -103,11 +103,11 @@ ACCEPT/REJECT를 결정한다(크레덴셜·서명·나머지 속성은 못 봄)
 | 1. 이슈어 서명 | ✅ 완전 | ✅ | longfellow의 핵심. 서명을 숨긴 채 "이 pk로 검증되는 유효 서명 존재" 증명 |
 | 2. 값 검증 (성인=true) | ⚠️ **동등(equality)만** | ✅ 술어/범위도 가능 | 아래 |
 | 3. 만료 | ✅ `now ≤ exp` | ✅ | exp 값은 숨기고 술어만. **nbf** 미검사, 상한만 |
-| 4. revoke | ❌ **없음** | ✅ 가능(인프라 필요) | 아래 |
+| 4. revoke | ✅ **구현됨**(서명된 구간) | ✅ | 아래 + [`sd-jwt-revocation_analysis-report-ko.md`](sd-jwt-revocation_analysis-report-ko.md) |
 | 5. 이슈어 신뢰 | ✅ (검증자가 pk 지정) | ✅ "신뢰목록 중 하나" 숨김도 가능 | 아래 / §8.2 |
 
 - **값 검증** — *동등*("claim = 공개값")만 됨. `age_over_18=true`는 이슈어가 미리 그 불리언을 박아둬서 되는 것. 값에서 **유도/범위**(생년월일→"나이≥18")는 이 회로에 **없음**(단 range proof 자체는 ZK 친화적). (`now≤exp`는 그 claim 하나를 위한 전용 숫자비교지 일반 기능이 아님.)
-- **revoke** — 회로에 status/revocation 검사 없음. ZK로 *가능*(예: SD-JWT-VC **Token Status List**: 인덱스를 숨기고 "내 상태=미취소" 증명, 또는 accumulator/Merkle 비멤버십) 하지만 신규 회로 + 검증자의 **최신 status list** 보유가 필요. revocation과 unlinkability는 본질적으로 상충(상태 인덱스를 노출하면 재링크됨).
+- **revoke** — **구현됨**(프라이버시 보존 비-멤버십). 발급자가 `revocation_id`를 커밋하고 폐기기관이 인접 폐기 id 사이 빈 구간을 서명, 회로가 `l < rev_id < r`을 ZK로 증명(상수 크기, `rev_id`도 어떤 크리덴셜인지도 노출 안 함). 상태 인덱스를 절대 노출하지 않아 revocation/unlinkability 상충을 해소. [`sd-jwt-revocation_analysis-report-ko.md`](sd-jwt-revocation_analysis-report-ko.md) 참고. (Token Status List 비트 룩업이나 accumulator/Merkle 비멤버십은 대안 ZK 구성.)
 - **이슈어 신뢰** — 검증자가 신뢰 이슈어의 pk를 공개입력으로 주고, 회로는 "그 pk로 서명됨"을 증명. 신뢰 판단은 out-of-band(검증자의 신뢰목록). *어느* 신뢰 이슈어인지 숨기는 것(신뢰 앵커 집합 멤버십)은 원리상 가능하나 미구현 — §8.2 참고.
 
 ---

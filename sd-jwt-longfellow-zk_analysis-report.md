@@ -103,11 +103,11 @@ A verifier typically performs five checks. Mapping each to **what this implement
 | 1. Issuer signature | ✅ full | ✅ | The core of longfellow. Proves "a valid signature under this pk exists" while hiding the signature |
 | 2. Value check (e.g. adult=true) | ⚠️ **equality only** | ✅ predicates/ranges too | see below |
 | 3. Expiry | ✅ `now ≤ exp` | ✅ | exp value hidden, only the predicate. No **nbf**, upper bound only |
-| 4. Revocation | ❌ **none** | ✅ possible (needs infra) | see below |
+| 4. Revocation | ✅ **now implemented** (signed-span) | ✅ | see below + [`sd-jwt-revocation_analysis-report.md`](sd-jwt-revocation_analysis-report.md) |
 | 5. Issuer trust | ✅ (verifier supplies pk) | ✅ "one of a trust list" hiding also possible | see below / §8.2 |
 
 - **Value check** — only *equality* ("claim = public value") works; `age_over_18=true` works because the issuer pre-inserted that boolean. Derived **predicates/ranges** (deriving "age≥18" from a birthdate) are **not** in this circuit, though range proofs are very ZK-friendly in general. (The `now≤exp` comparison is a bespoke numeric compare for that one claim, not a generic facility.)
-- **Revocation** — no status/revocation check in the circuit. ZK *can* do it (e.g. SD-JWT-VC **Token Status List**: prove "my status bit = not-revoked" while hiding the index; or accumulator/Merkle non-membership), but it needs new circuits + the verifier holding a fresh status list. Revocation and unlinkability are inherently in tension (revealing the status index re-links you).
+- **Revocation** — **now implemented** as privacy-preserving non-membership: the issuer commits a `revocation_id` and a revocation authority signs the open gaps between adjacent revoked ids; the circuit proves `l < rev_id < r` in ZK (constant-size, reveals neither `rev_id` nor which credential). This resolves the revocation/unlinkability tension by never revealing a status index. See [`sd-jwt-revocation_analysis-report.md`](sd-jwt-revocation_analysis-report.md). (A Token Status List bit-lookup or accumulator/Merkle non-membership are alternative ZK constructions.)
 - **Issuer trust** — the verifier supplies the trusted issuer's pk as a public input; the circuit proves "signed by that pk." Trust is decided out-of-band (the verifier's trusted-issuer registry). Hiding *which* trusted issuer (set membership over trust anchors) is possible in principle but unimplemented — see §8.2.
 
 ---
