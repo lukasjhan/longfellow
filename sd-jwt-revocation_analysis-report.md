@@ -102,7 +102,7 @@ Threat model: a malicious prover must not (S1) pass while revoked, (S2) forge re
 - **CRA operational model.** Soundness of "not revoked" is only as strong as the CRA's invariant of correctly maintaining the sorted revoked set and **re-signing the spans each epoch** (freshness is enforced in-circuit, but the CRA must rotate). The demo simulates a gap with `l = N−1, r = N+1`; a real CRA derives gaps from the actual revoked set.
 - **rev_id = `_sd` digest.** Using the digest as the identifier means the CRA revokes by `revocation_id` `_sd` digest (the issuer knows it at issuance). Fine, but it couples the revocation handle to the issued disclosure.
 - **Fixed-length claim.** `revocation_id` is a fixed 64-hex `_sd` claim; the issuer must honor that (it must fit one disclosure).
-- **mdoc not yet done.** The same construction applies to mdoc (a `revocation_id` IssuerSignedItem + the identical span block, reusing the extraction path of [`mdoc-nullifier_analysis-report.md`](mdoc-nullifier_analysis-report.md)); not yet implemented.
+- **mdoc — now implemented.** The same construction is applied to a real mdoc (a `revocation_id` IssuerSignedItem whose valueDigests entry is `rev_id`, plus the identical span block) — see [`mdoc-revocation_analysis-report.md`](mdoc-revocation_analysis-report.md).
 
 ## 8. Files / run
 
@@ -123,7 +123,7 @@ The CRA P-256 key and span signature are generated on the host with OpenSSL in `
 
 ## 9. Future work
 
-- **mdoc revocation** (the same span block on `mdoc_null_split`).
+- **mdoc revocation** — ✅ done ([`mdoc-revocation_analysis-report.md`](mdoc-revocation_analysis-report.md)).
 - **Realistic CRA tooling**: maintain the sorted revoked set, derive/sign spans, publish per-epoch.
 - **Compose with short-lived epochs**: most churn handled by expiry; signed spans only for urgent revocation.
 - **Combine with the nullifier**: one credential carrying both `pseudonym_secret` and `revocation_id` (independent blocks; no extra MAC values).

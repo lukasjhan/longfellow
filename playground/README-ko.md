@@ -237,12 +237,14 @@ playground/
   [`sd-jwt-nullifier_analysis-report-ko.md`](../sd-jwt-nullifier_analysis-report-ko.md),
   [`mdoc-nullifier_analysis-report-ko.md`](../mdoc-nullifier_analysis-report-ko.md)
   (블라인드 발급·임의 필드순서 일반화 등 각 future work는 보고서 §8에).
-- ✅ **프라이버시 보존 폐기 (서명된 구간 비-멤버십)** — `pnpm run demo:revocation`.
-  발급자가 `revocation_id`를 커밋(그 `_sd` 다이제스트 = `rev_id`)하고, 폐기기관이 인접 폐기 id
-  사이 빈 구간 `epoch‖l‖r`을 서명, 회로가 `l < rev_id < r`을 ZK로 증명 — **목록 크기와 무관한
-  상수 크기** 비-폐기 증명이며 `rev_id`도 어떤 크리덴셜인지도 노출 안 함. `e_span`을 4번째
-  MAC-link 값으로 추가. soundness 검증: `REVOKED`/`BADSIG`/`STALE`/`TAMPER` 모두 거부.
-  보고서: [`sd-jwt-revocation_analysis-report-ko.md`](../sd-jwt-revocation_analysis-report-ko.md).
+- ✅ **프라이버시 보존 폐기 (서명된 구간 비-멤버십)** — 두 포맷 모두:
+  `pnpm run demo:revocation`(SD-JWT), `pnpm run demo:mdoc-revocation`(실제 mdoc).
+  발급자가 `revocation_id`를 커밋(그 `_sd` 다이제스트 / mdoc valueDigests 항목 = `rev_id`)하고,
+  폐기기관이 인접 폐기 id 사이 빈 구간 `epoch‖l‖r`을 서명, 회로가 `l < rev_id < r`을 ZK로 증명 —
+  **목록 크기와 무관한 상수 크기** 비-폐기 증명이며 `rev_id`도 어떤 크리덴셜인지도 노출 안 함.
+  `e_span`을 4번째 MAC-link 값으로 추가. soundness 검증: `REVOKED`/`BADSIG`/`STALE`/`TAMPER` 모두 거부.
+  보고서: [`sd-jwt-revocation_analysis-report-ko.md`](../sd-jwt-revocation_analysis-report-ko.md),
+  [`mdoc-revocation_analysis-report-ko.md`](../mdoc-revocation_analysis-report-ko.md).
 
 **남은 것:**
 

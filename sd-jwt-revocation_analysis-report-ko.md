@@ -101,7 +101,7 @@ split은 베이스 증명을 따라가며, span의 ECDSA는 Fp256 회로, SHA+�
 - **CRA 운영모델.** "폐기 안 됨"의 soundness는 CRA가 정렬된 폐기집합을 올바로 유지하고 **매 epoch span 재서명**하는 불변식만큼만 강함(freshness는 회로가 강제하나 CRA가 회전해야). 데모는 `l = N−1, r = N+1`로 gap 시뮬레이션; 실제 CRA는 실제 폐기집합에서 gap 유도.
 - **rev_id = `_sd` 다이제스트.** 다이제스트를 식별자로 쓰면 CRA가 `revocation_id` `_sd` 다이제스트로 폐기(발급 시 발급자가 앎). 무방하나 폐기 핸들이 발급된 disclosure에 결합됨.
 - **고정 길이 클레임.** `revocation_id`는 고정 64-hex `_sd` 클레임; 발급자가 준수(disclosure 하나에 들어가야).
-- **mdoc 미구현.** 동일 구성이 mdoc에도 적용 가능(`revocation_id` IssuerSignedItem + 동일 span 블록, [`mdoc-nullifier_analysis-report-ko.md`](mdoc-nullifier_analysis-report-ko.md)의 추출 경로 재활용); 아직 미구현.
+- **mdoc — 구현됨.** 동일 구성을 실제 mdoc에 적용(`revocation_id` IssuerSignedItem의 valueDigests 항목이 `rev_id`, 동일 span 블록) — [`mdoc-revocation_analysis-report-ko.md`](mdoc-revocation_analysis-report-ko.md) 참조.
 
 ## 8. 파일 / 실행
 
@@ -122,7 +122,7 @@ CRA P-256 키와 span 서명은 `main`에서 OpenSSL로 생성(CRA 역할); `l, 
 
 ## 9. 미래 과제
 
-- **mdoc 폐기**(`mdoc_null_split`에 동일 span 블록).
+- **mdoc 폐기** — ✅ 완료 ([`mdoc-revocation_analysis-report-ko.md`](mdoc-revocation_analysis-report-ko.md)).
 - **현실적 CRA 도구**: 정렬된 폐기집합 유지, span 유도/서명, epoch별 발행.
 - **단명 epoch와 조합**: 대부분 만료로 처리, 긴급 폐기만 서명된 span.
 - **nullifier와 결합**: 한 크리덴셜이 `pseudonym_secret` + `revocation_id` 둘 다 보유(독립 블록, MAC 값 추가 없음).
