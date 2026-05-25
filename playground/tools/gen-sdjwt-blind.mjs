@@ -57,6 +57,7 @@ async function main() {
     makeDisclosure('birthdate', '1963-08-12'),
     makeDisclosure('age_over_18', true),
     makeDisclosure('height', 175),
+    makeDisclosure('resident_city', 'Seoul'),   // address attribute (voting scenario)
     // BLIND: the commitment, NOT the secret. Issuer-committed (in _sd) so the
     // holder cannot swap it; but the issuer learns nothing about the secret.
     makeDisclosure('pseudonym_commitment', commitment_b64),

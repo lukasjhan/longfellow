@@ -839,6 +839,25 @@ int main(int argc, char** argv) {
   std::string compact = rf(fixture);
   const f_128 Fs;
 
+  // ---- disclosed (name = value) pairs --------------------------------------
+  // Print the disclosed claims so a verifier can apply policy on AUTHENTIC values
+  // (each is proven ∈ _sd by the circuit, so the holder cannot disclose a value
+  // it was not issued). Format: `disclosed: <name> = <raw JSON value>`.
+  {
+    std::vector<std::string> discs; size_t p = compact.find('~') + 1, q;
+    while ((q = compact.find('~', p)) != std::string::npos) { if (q > p) discs.push_back(compact.substr(p, q - p)); p = q + 1; }
+    for (auto& cl : claims) {
+      std::string key = "\"" + cl + "\"";
+      for (auto& d : discs) {
+        std::string dj = b64d(d); size_t kp = dj.find(key);
+        if (kp == std::string::npos) continue;
+        size_t vp = dj.find(',', kp + key.size()) + 1;
+        printf("  disclosed: %s = %s\n", cl.c_str(), dj.substr(vp, dj.rfind(']') - vp).c_str());
+        break;
+      }
+    }
+  }
+
   // ---- holder's secret + blinding (the issuer NEVER saw these) --------------
   // File format: secret_hex (64) ‖ blind_hex (64) on one line. Default path can
   // be overridden via HOLDER_SECRET (the demo passes an absolute path).
