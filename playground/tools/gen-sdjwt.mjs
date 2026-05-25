@@ -58,6 +58,10 @@ async function main() {
     // chars (32 bytes). Issuer-committed (in _sd) so the holder can't choose it →
     // nullifier = SHA(secret ‖ context_id) is Sybil-sound. Stays hidden in ZK.
     makeDisclosure('pseudonym_secret', randomBytes(32).toString('hex')),
+    // per-credential revocation handle (an _sd claim, never disclosed). Its _sd
+    // digest is the 256-bit `rev_id` used by the privacy-preserving revocation
+    // circuit (signed-span non-membership). 64 hex chars so it fits one disclosure.
+    makeDisclosure('revocation_id', randomBytes(32).toString('hex')),
     ...(BIG ? [
       makeDisclosure('age_over_21', true),
       makeDisclosure('age_in_years', 61),

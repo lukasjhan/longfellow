@@ -2,74 +2,83 @@
   "payload": {
     "iss": "https://issuer.example/eudi",
     "vct": "https://credentials.example/pid",
-    "iat": 1779622302,
-    "exp": 1782214302,
+    "iat": 1779707375,
+    "exp": 1782299375,
     "cnf": {
       "jwk": {
         "kty": "EC",
-        "x": "94Ys6fUO13o3RJufdGy75GlD_jbaBJ-uA_F-gb-3q0U",
-        "y": "QyMEn787ou7mhNUIOz-lipYNEGBhmZ8hhnqDUXIDH2U",
+        "x": "OfK50ilmS0Nnfx8ry_feIXypy4V8QR16mgxgqjT9UZk",
+        "y": "nHoZM0HN5KV6ZN3yUz8pAr6YznUhmajAyuzljqZaHxE",
         "crv": "P-256"
       }
     },
     "_sd_alg": "sha-256",
     "_sd": [
-      "4CWcLo3SIS0rWFmCiX5wJlSGCmXWNtRQ9b6HONsz4VU",
-      "NgFNEtocCtIj4WoNMuRnrn7dt_0_iNURfz6HHKAV-DQ",
-      "VtNui4Q5nT3o0dlnw5jhmOuszlbVrphIfTlHRAsEfNw",
-      "WperTvkp6yeWA4gGpW-yhWMCizaqcUAoqHhE6AqwcE4",
-      "nEtL-426zSXmZ6Q180ydzdcUUtVyYctBtwzqx2cbAw8",
-      "sgny1_JiRZywJ4zy-NIUm_2NBP5M1uYkPq1I-A5O2MM"
+      "7tvocbepYKEk1IgcPtk90bf38dINImICny9fC5HA15Q",
+      "HQgGmoZO3xZsW7chDzr5Nc2WMId2MkkEOjsVd0A6bl4",
+      "flspjfSMB80YoTqHRfUAQ29QdKogjEjKKRkwJ1ju3jM",
+      "j_JxjdmcAPIgoj30W1QetqLStdZuUfW5Ad0SziL_Zng",
+      "lg3heVXKh_u0e3Y4iLF_qxWD6chCSAYbZuwFNzKVIUQ",
+      "rr1E3QTz4i0nXF0DioHo7l3dcR5vyfAkKWfivLfKenY",
+      "spLv2HHE91v-j1LYQjzi8lJVk1YObOj9E-4svqFwDY4"
     ]
   },
   "disclosures": [
     {
       "name": "given_name",
       "value": "Erika",
-      "salt": "dLjVyRoBdKD46vcDjoToGg",
-      "json": "[\"dLjVyRoBdKD46vcDjoToGg\",\"given_name\",\"Erika\"]",
-      "disclosure": "WyJkTGpWeVJvQmRLRDQ2dmNEam9Ub0dnIiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
-      "digest": "sgny1_JiRZywJ4zy-NIUm_2NBP5M1uYkPq1I-A5O2MM"
+      "salt": "KIQ94avQvFJf5wCkBibMRg",
+      "json": "[\"KIQ94avQvFJf5wCkBibMRg\",\"given_name\",\"Erika\"]",
+      "disclosure": "WyJLSVE5NGF2UXZGSmY1d0NrQmliTVJnIiwiZ2l2ZW5fbmFtZSIsIkVyaWthIl0",
+      "digest": "HQgGmoZO3xZsW7chDzr5Nc2WMId2MkkEOjsVd0A6bl4"
     },
     {
       "name": "family_name",
       "value": "Mustermann",
-      "salt": "hZrdYc0KIhuv6zKJZVErzA",
-      "json": "[\"hZrdYc0KIhuv6zKJZVErzA\",\"family_name\",\"Mustermann\"]",
-      "disclosure": "WyJoWnJkWWMwS0lodXY2ektKWlZFcnpBIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
-      "digest": "4CWcLo3SIS0rWFmCiX5wJlSGCmXWNtRQ9b6HONsz4VU"
+      "salt": "Mqb-7Ay7RQr1HHb_lJPBCQ",
+      "json": "[\"Mqb-7Ay7RQr1HHb_lJPBCQ\",\"family_name\",\"Mustermann\"]",
+      "disclosure": "WyJNcWItN0F5N1JRcjFISGJfbEpQQkNRIiwiZmFtaWx5X25hbWUiLCJNdXN0ZXJtYW5uIl0",
+      "digest": "rr1E3QTz4i0nXF0DioHo7l3dcR5vyfAkKWfivLfKenY"
     },
     {
       "name": "birthdate",
       "value": "1963-08-12",
-      "salt": "OXkbRfIbOqJg6n7tqaK9Qw",
-      "json": "[\"OXkbRfIbOqJg6n7tqaK9Qw\",\"birthdate\",\"1963-08-12\"]",
-      "disclosure": "WyJPWGtiUmZJYk9xSmc2bjd0cWFLOVF3IiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
-      "digest": "WperTvkp6yeWA4gGpW-yhWMCizaqcUAoqHhE6AqwcE4"
+      "salt": "ABKdEdwT80uuABq9csYdmw",
+      "json": "[\"ABKdEdwT80uuABq9csYdmw\",\"birthdate\",\"1963-08-12\"]",
+      "disclosure": "WyJBQktkRWR3VDgwdXVBQnE5Y3NZZG13IiwiYmlydGhkYXRlIiwiMTk2My0wOC0xMiJd",
+      "digest": "7tvocbepYKEk1IgcPtk90bf38dINImICny9fC5HA15Q"
     },
     {
       "name": "age_over_18",
       "value": true,
-      "salt": "1Yrvv5NQyB-jVE1r84VcmA",
-      "json": "[\"1Yrvv5NQyB-jVE1r84VcmA\",\"age_over_18\",true]",
-      "disclosure": "WyIxWXJ2djVOUXlCLWpWRTFyODRWY21BIiwiYWdlX292ZXJfMTgiLHRydWVd",
-      "digest": "VtNui4Q5nT3o0dlnw5jhmOuszlbVrphIfTlHRAsEfNw"
+      "salt": "1pkESoVm2DD8xLBqfWoU_Q",
+      "json": "[\"1pkESoVm2DD8xLBqfWoU_Q\",\"age_over_18\",true]",
+      "disclosure": "WyIxcGtFU29WbTJERDh4TEJxZldvVV9RIiwiYWdlX292ZXJfMTgiLHRydWVd",
+      "digest": "j_JxjdmcAPIgoj30W1QetqLStdZuUfW5Ad0SziL_Zng"
     },
     {
       "name": "height",
       "value": 175,
-      "salt": "z8_VsoLe2Wq_4-csLdzgtQ",
-      "json": "[\"z8_VsoLe2Wq_4-csLdzgtQ\",\"height\",175]",
-      "disclosure": "WyJ6OF9Wc29MZTJXcV80LWNzTGR6Z3RRIiwiaGVpZ2h0IiwxNzVd",
-      "digest": "NgFNEtocCtIj4WoNMuRnrn7dt_0_iNURfz6HHKAV-DQ"
+      "salt": "2fYQ9v9ueODZSBKkcna3aw",
+      "json": "[\"2fYQ9v9ueODZSBKkcna3aw\",\"height\",175]",
+      "disclosure": "WyIyZllROXY5dWVPRFpTQktrY25hM2F3IiwiaGVpZ2h0IiwxNzVd",
+      "digest": "flspjfSMB80YoTqHRfUAQ29QdKogjEjKKRkwJ1ju3jM"
     },
     {
       "name": "pseudonym_secret",
-      "value": "cd076dceb6c3f32d0cf8ab847a4f0fff5dd6f41ec3f61d9996f02f667a85bbf8",
-      "salt": "RgnkBKDyGweOFOESlvRvFw",
-      "json": "[\"RgnkBKDyGweOFOESlvRvFw\",\"pseudonym_secret\",\"cd076dceb6c3f32d0cf8ab847a4f0fff5dd6f41ec3f61d9996f02f667a85bbf8\"]",
-      "disclosure": "WyJSZ25rQktEeUd3ZU9GT0VTbHZSdkZ3IiwicHNldWRvbnltX3NlY3JldCIsImNkMDc2ZGNlYjZjM2YzMmQwY2Y4YWI4NDdhNGYwZmZmNWRkNmY0MWVjM2Y2MWQ5OTk2ZjAyZjY2N2E4NWJiZjgiXQ",
-      "digest": "nEtL-426zSXmZ6Q180ydzdcUUtVyYctBtwzqx2cbAw8"
+      "value": "afcc38860097dd1019a63e81a6e5adab7f0e5f879698a0ef7e2adfd6983ebc4d",
+      "salt": "cbXcKQqWa8s1llUYF-gxpA",
+      "json": "[\"cbXcKQqWa8s1llUYF-gxpA\",\"pseudonym_secret\",\"afcc38860097dd1019a63e81a6e5adab7f0e5f879698a0ef7e2adfd6983ebc4d\"]",
+      "disclosure": "WyJjYlhjS1FxV2E4czFsbFVZRi1neHBBIiwicHNldWRvbnltX3NlY3JldCIsImFmY2MzODg2MDA5N2RkMTAxOWE2M2U4MWE2ZTVhZGFiN2YwZTVmODc5Njk4YTBlZjdlMmFkZmQ2OTgzZWJjNGQiXQ",
+      "digest": "lg3heVXKh_u0e3Y4iLF_qxWD6chCSAYbZuwFNzKVIUQ"
+    },
+    {
+      "name": "revocation_id",
+      "value": "5c75e5a67f2bf05cd8db4beb45362c7a63f95cd9db392f6af8c98d9398f0caea",
+      "salt": "iJAs5uNemG9ZBaa46-P70A",
+      "json": "[\"iJAs5uNemG9ZBaa46-P70A\",\"revocation_id\",\"5c75e5a67f2bf05cd8db4beb45362c7a63f95cd9db392f6af8c98d9398f0caea\"]",
+      "disclosure": "WyJpSkFzNXVOZW1HOVpCYWE0Ni1QNzBBIiwicmV2b2NhdGlvbl9pZCIsIjVjNzVlNWE2N2YyYmYwNWNkOGRiNGJlYjQ1MzYyYzdhNjNmOTVjZDlkYjM5MmY2YWY4Yzk4ZDkzOThmMGNhZWEiXQ",
+      "digest": "spLv2HHE91v-j1LYQjzi8lJVk1YObOj9E-4svqFwDY4"
     }
   ]
 }

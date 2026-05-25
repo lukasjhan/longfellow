@@ -22,7 +22,9 @@ playground/native/sdjwt_null_split
 playground/native/sdjwt_null_blind
 playground/native/mdoc_null_split
 playground/native/mdoc_null_blind
+playground/native/sdjwt_revoc_split
 playground/native/*.o
+playground/native/err.log
 
 # --- node ---
 node_modules/

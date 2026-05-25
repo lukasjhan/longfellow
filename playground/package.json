@@ -23,6 +23,7 @@
     "demo:nullifier-blind": "node src/demo-nullifier-blind.js",
     "demo:mdoc-nullifier": "node src/demo-mdoc-nullifier.js",
     "demo:mdoc-nullifier-blind": "node src/demo-mdoc-nullifier-blind.js",
+    "demo:revocation": "node src/demo-revocation.js",
     "scenario:voting": "node src/scenario-voting.js",
     "scenario:voting-sdjwt": "node src/scenario-voting-sdjwt.js",
     "scenario:voting-sdjwt-assert": "node src/scenario-voting-sdjwt-assert.js",

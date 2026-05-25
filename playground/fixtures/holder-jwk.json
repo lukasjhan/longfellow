@@ -1,10 +1,10 @@
 {
   "jwk": {
     "kty": "EC",
-    "x": "94Ys6fUO13o3RJufdGy75GlD_jbaBJ-uA_F-gb-3q0U",
-    "y": "QyMEn787ou7mhNUIOz-lipYNEGBhmZ8hhnqDUXIDH2U",
+    "x": "OfK50ilmS0Nnfx8ry_feIXypy4V8QR16mgxgqjT9UZk",
+    "y": "nHoZM0HN5KV6ZN3yUz8pAr6YznUhmajAyuzljqZaHxE",
     "crv": "P-256"
   },
-  "x_hex": "0xf7862ce9f50ed77a37449b9f746cbbe46943fe36da049fae03f17e81bfb7ab45",
-  "y_hex": "0x4323049fbf3ba2eee684d5083b3fa58a960d106061999f21867a835172031f65"
+  "x_hex": "0x39f2b9d229664b43677f1f2bcbf7de217ca9cb857c411d7a9a0c60aa34fd5199",
+  "y_hex": "0x9c7a193341cde4a57a64ddf2533f2902be98ce752199a8c0caece58ea65a1f11"
 }

@@ -101,6 +101,9 @@ echo ">> compiling sdjwt_nullifier (monolith: SD-JWT-VC + pseudonym nullifier)"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_nullifier.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_nullifier"
 echo ">> compiling sdjwt_null_split (2-circuit split: nullifier in GF(2^128) hash)"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_null_split.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_null_split"
+# --- REVOCATION: SD-JWT-VC proof + signed-span non-membership (privacy-preserving) ---
+echo ">> compiling sdjwt_revoc_split (2-circuit split: revocation span non-membership)"
+"$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_revoc_split.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_revoc_split"
 # --- BLIND-issuance nullifier: credential commits C=SHA(secret‖blind); holder proves opening + nullifier ---
 echo ">> compiling sdjwt_null_blind (blind issuance: commitment opening + nullifier)"
 "$TC/clang++w" -std=c++17 -O2 -mpclmul -I"$LIB" "$HERE/sdjwt_null_blind.cc" "$BUILD/circuits/mdoc/libmdoc_static.a" -lcrypto -lzstd -lpthread -o "$HERE/sdjwt_null_blind"
