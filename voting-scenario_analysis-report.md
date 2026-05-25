@@ -93,6 +93,12 @@ Why the demos differ: mdoc follows longfellow's public `RequestedAttribute{id, c
 
 > Address forgery is prevented in both: in mdoc, requesting `Busan` against a `Seoul` credential makes the proof unsatisfiable (REJECT); in SD-JWT, the holder can only disclose its authentic `Seoul`, so a Busan-district verifier's policy rejects it. The holder cannot prove a city it was not issued.
 
+### 5.1 SD-JWT can do assert too (no circuit change)
+
+To make the "both styles in both formats" claim concrete, the SD-JWT binary supports **both modes** via the claim syntax: `name` (disclose) vs `name=<value>` (assert). This is a **host-only change** — the circuit always asserts `holder disclosure suffix == public pattern`; disclose fills that public pattern from the holder's value, assert fills it from the verifier's required value. Same compiled circuit, same cache, no rebuild.
+
+`scenario-voting-sdjwt-assert.js` runs the assert version: the EC states the required values (`age_over_18==true`, `resident_city=="Seoul"`) in its request, and the wallet proves the credential matches **without revealing the values**. The decisive difference shows in the wrong-district step: a Seoul resident at a Busan poll is **rejected without the EC ever learning the real city** (the disclose version reveals `Seoul`). The binary prints `asserted: <name> == <value>` (the required value the verifier chose), never the holder's actual value.
+
 ---
 
 ## 6. Security properties (per step)
@@ -126,6 +132,7 @@ Why the demos differ: mdoc follows longfellow's public `RequestedAttribute{id, c
 |---|---|
 | `src/scenario-voting.js` | `pnpm run scenario:voting` — the mdoc scenario (assert-style values) |
 | `src/scenario-voting-sdjwt.js` | `pnpm run scenario:voting-sdjwt` — the SD-JWT-VC scenario (disclose-style + KB nonce/aud) |
+| `src/scenario-voting-sdjwt-assert.js` | `pnpm run scenario:voting-sdjwt-assert` — SD-JWT-VC **assert-style** (values not revealed; same circuit, §5.1) |
 | `native/mdoc_null_blind.cc` | blind mdoc nullifier circuit (multi-attribute) |
 | `native/sdjwt_null_blind.cc` | blind SD-JWT nullifier circuit (prints disclosed claim values) |
 | `tools/gen-mdoc-blind.mjs` / `tools/gen-sdjwt-blind.mjs` | blind issuers (commit C; add `resident_city`) |
@@ -135,6 +142,7 @@ cd playground
 pnpm run build:native          # once
 pnpm run scenario:voting       # mdoc:    issue → request → vote → double-vote/forgery/third-party reject
 pnpm run scenario:voting-sdjwt # SD-JWT:  same, plus in-circuit KB nonce/aud binding
+pnpm run scenario:voting-sdjwt-assert # SD-JWT assert: prove the values WITHOUT revealing them (§5.1)
 ```
 
 Each scenario runs: [1] blind issue → [2] EC signs a presentation request, wallet verifies it → [3] first vote ACCEPT (eligibility + nullifier registered) → [4] double vote REJECT (same nullifier) → [5] wrong district REJECT (value bound to the credential) → [6] third-party request REJECT (wallet RP authentication).

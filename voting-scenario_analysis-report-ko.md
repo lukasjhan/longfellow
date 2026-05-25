@@ -93,6 +93,12 @@
 
 > 주소 위조는 양쪽 다 차단: mdoc은 Seoul 자격증명에 `Busan`을 요청하면 proof 불가(REJECT); SD-JWT는 홀더가 진본 `Seoul`만 공개 가능 → Busan 지역 검증자 정책이 거부. 홀더는 발급받지 않은 도시를 증명 못 함.
 
+### 5.1 SD-JWT도 단언식 가능 (회로 무변경)
+
+"양쪽 포맷에서 둘 다 가능"을 실제로 보이기 위해, SD-JWT 바이너리는 claim 문법으로 **두 모드**를 지원: `name`(공개) vs `name=<값>`(단언). 이는 **호스트만의 변경** — 회로는 언제나 `홀더 disclosure 접미사 == 공개 pattern`을 단언하고, 공개는 그 pattern을 홀더 값으로, 단언은 검증자 요구값으로 채울 뿐. 같은 컴파일 회로·같은 캐시·재빌드 없음.
+
+`scenario-voting-sdjwt-assert.js`가 단언 버전: EC가 요구값(`age_over_18==true`, `resident_city=="Seoul"`)을 요청에 담고, 월렛은 자격증명이 부합함을 **값을 공개하지 않고** 증명. 결정적 차이는 타 지역 단계에서 드러남 — Busan 투표소의 Seoul 거주자는 **EC가 실제 도시를 전혀 모른 채 거부**됨(공개판은 `Seoul`을 드러냄). 바이너리는 `asserted: <name> == <값>`(검증자가 고른 요구값)을 출력할 뿐, 홀더 실제값은 절대 안 드러냄.
+
 ---
 
 ## 6. 보안 성질 (단계별)
@@ -126,6 +132,7 @@
 |---|---|
 | `src/scenario-voting.js` | `pnpm run scenario:voting` — mdoc 시나리오 (단언식 값) |
 | `src/scenario-voting-sdjwt.js` | `pnpm run scenario:voting-sdjwt` — SD-JWT-VC 시나리오 (공개식 + KB nonce/aud) |
+| `src/scenario-voting-sdjwt-assert.js` | `pnpm run scenario:voting-sdjwt-assert` — SD-JWT-VC **단언식** (값 비공개; 같은 회로, §5.1) |
 | `native/mdoc_null_blind.cc` | 블라인드 mdoc nullifier 회로 (다속성) |
 | `native/sdjwt_null_blind.cc` | 블라인드 SD-JWT nullifier 회로 (공개 claim 값 출력) |
 | `tools/gen-mdoc-blind.mjs` / `tools/gen-sdjwt-blind.mjs` | 블라인드 발급기 (C 커밋; `resident_city` 추가) |
@@ -135,6 +142,7 @@ cd playground
 pnpm run build:native          # 1회
 pnpm run scenario:voting       # mdoc:    발급 → 요청 → 투표 → 재투표/위조/3자 거부
 pnpm run scenario:voting-sdjwt # SD-JWT:  동일 + 회로 안 KB nonce/aud 결속
+pnpm run scenario:voting-sdjwt-assert # SD-JWT 단언: 값을 공개하지 않고 증명 (§5.1)
 ```
 
 각 시나리오: [1] 블라인드 발급 → [2] EC 서명 제시요청, 월렛 검증 → [3] 첫 투표 ACCEPT(자격 + nullifier 등록) → [4] 재투표 REJECT(같은 nullifier) → [5] 타 지역 REJECT(값이 자격증명에 결속) → [6] 제3자 요청 REJECT(월렛 RP 인증).

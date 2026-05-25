@@ -656,6 +656,7 @@ bool fill(Dense<f_128>& W, bool pub_only, const Circuit<f_128>& C, const f_128& 
           const std::string& nonce, const std::string& aud,
           const uint8_t* context_hash, const uint8_t* nullifier,
           const uint8_t* secret32, const uint8_t* blind32,
+          const std::vector<std::string>& assertVals,
           const gf2k* ap, const gf2k macs6[6], gf2k av) {
   size_t nattr = claims.size();
   std::string jwt = compact.substr(0, compact.find('~'));
@@ -715,9 +716,17 @@ bool fill(Dense<f_128>& W, bool pub_only, const Circuit<f_128>& C, const f_128& 
     push_rev_bits(f, nullifier, Fs);
     push_rev_bits(f, kbdig, Fs);
     for (size_t s = 0; s < nattr; ++s) {
-      std::string dj = b64d(chosen[s]);
-      size_t salt_len = dj.find("\",\"") - 2;
-      std::string pat = dj.substr(2 + salt_len);
+      std::string pat;
+      if (!assertVals[s].empty()) {
+        // ASSERT: pattern = ","name",<required value>]  (verifier-required; the
+        // holder's actual disclosure must match it or the proof is unsatisfiable).
+        pat = "\",\"" + claims[s] + "\"," + assertVals[s] + "]";
+      } else {
+        // DISCLOSE: pattern = the holder's own disclosure suffix (value revealed).
+        std::string dj = b64d(chosen[s]);
+        size_t salt_len = dj.find("\",\"") - 2;
+        pat = dj.substr(2 + salt_len);
+      }
       for (size_t i = 0; i < MAXPAT; ++i) f.push_back(i < pat.size() ? (uint8_t)pat[i] : 0, 8, Fs);
       f.push_back((uint8_t)pat.size(), 8, Fs);
     }
@@ -825,11 +834,18 @@ int main(int argc, char** argv) {
   std::string fixture = argc > 1 ? argv[1] : "playground/fixtures/sdjwt-blind.txt";
   std::string jwk = argc > 2 ? argv[2] : "playground/fixtures/issuer-jwk-blind.json";
   const char* now = argc > 3 ? argv[3] : "1700000000";
-  std::vector<std::string> claims;
-  if (argc > 4) { std::string cs = argv[4]; size_t p = 0, q;
-    while ((q = cs.find(',', p)) != std::string::npos) { claims.push_back(cs.substr(p, q - p)); p = q + 1; }
-    claims.push_back(cs.substr(p)); }
-  else claims = {"given_name", "age_over_18", "height"};
+  // Comma-separated claims. Each is either `name` (DISCLOSE: reveal the holder's
+  // value via the public pattern) or `name=<jsonvalue>` (ASSERT: the verifier
+  // requires that value; the circuit's S==pattern check then enforces it and a
+  // mismatch makes the proof unsatisfiable, hiding the holder's actual value).
+  std::vector<std::string> claims, assertVals;
+  { std::string cs = argc > 4 ? argv[4] : "given_name,age_over_18,height";
+    std::vector<std::string> parts; size_t p = 0, q;
+    while ((q = cs.find(',', p)) != std::string::npos) { parts.push_back(cs.substr(p, q - p)); p = q + 1; }
+    parts.push_back(cs.substr(p));
+    for (auto& pt : parts) { size_t eq = pt.find('=');
+      if (eq == std::string::npos) { claims.push_back(pt); assertVals.push_back(""); }
+      else { claims.push_back(pt.substr(0, eq)); assertVals.push_back(pt.substr(eq + 1)); } } }
   std::string vct = argc > 5 ? argv[5] : "https://credentials.example/pid";
   std::string nonce = argc > 6 ? argv[6] : "1234567890";              // verifier-chosen nonce
   std::string aud = argc > 7 ? argv[7] : "https://verifier.example";  // verifier-chosen aud
@@ -839,20 +855,28 @@ int main(int argc, char** argv) {
   std::string compact = rf(fixture);
   const f_128 Fs;
 
-  // ---- disclosed (name = value) pairs --------------------------------------
-  // Print the disclosed claims so a verifier can apply policy on AUTHENTIC values
-  // (each is proven ∈ _sd by the circuit, so the holder cannot disclose a value
-  // it was not issued). Format: `disclosed: <name> = <raw JSON value>`.
+  // ---- claim handling per mode --------------------------------------------
+  // DISCLOSE: print `disclosed: <name> = <authentic value>` (the verifier reads
+  //   it and applies policy; the value is proven ∈ _sd so it cannot be faked).
+  // ASSERT:   print `asserted: <name> == <required value>` (the value is NOT
+  //   revealed; the circuit enforces it and a mismatch yields no proof). Also
+  //   bound the required pattern length to MAXPAT (soundness).
   {
     std::vector<std::string> discs; size_t p = compact.find('~') + 1, q;
     while ((q = compact.find('~', p)) != std::string::npos) { if (q > p) discs.push_back(compact.substr(p, q - p)); p = q + 1; }
-    for (auto& cl : claims) {
-      std::string key = "\"" + cl + "\"";
+    for (size_t s = 0; s < claims.size(); ++s) {
+      if (!assertVals[s].empty()) {
+        std::string pat = "\",\"" + claims[s] + "\"," + assertVals[s] + "]";
+        if (pat.size() > hashc::MAXPAT) { printf("ERROR: assert pattern for %s too long (%zu > %zu)\n", claims[s].c_str(), pat.size(), hashc::MAXPAT); return 2; }
+        printf("  asserted: %s == %s\n", claims[s].c_str(), assertVals[s].c_str());
+        continue;
+      }
+      std::string key = "\"" + claims[s] + "\"";
       for (auto& d : discs) {
         std::string dj = b64d(d); size_t kp = dj.find(key);
         if (kp == std::string::npos) continue;
         size_t vp = dj.find(',', kp + key.size()) + 1;
-        printf("  disclosed: %s = %s\n", cl.c_str(), dj.substr(vp, dj.rfind(']') - vp).c_str());
+        printf("  disclosed: %s = %s\n", claims[s].c_str(), dj.substr(vp, dj.rfind(']') - vp).c_str());
         break;
       }
     }
@@ -948,7 +972,7 @@ int main(int argc, char** argv) {
   auto W_sig = Dense<Fp256Base>(1, Csig->ninputs);
   auto W_hash = Dense<f_128>(1, Chash->ninputs);
   if (!sigc::fill(W_sig, false, v, lk.ap, zero6, Fs.zero())) { printf("sig fill failed\n"); return 1; }
-  if (!hashc::fill(W_hash, false, *Chash, Fs, compact, now, claims, vct, nonce, aud, ctxh, nullhash, secret, blind, lk.ap, zero6, Fs.zero())) { printf("hash fill failed\n"); return 1; }
+  if (!hashc::fill(W_hash, false, *Chash, Fs, compact, now, claims, vct, nonce, aud, ctxh, nullhash, secret, blind, assertVals, lk.ap, zero6, Fs.zero())) { printf("hash fill failed\n"); return 1; }
 
   // 2) commit BOTH into one shared transcript (so a_v depends on both commits).
   Transcript tp((const uint8_t*)"sdjwt-blind", 11, kVer);
@@ -1008,7 +1032,7 @@ int main(int argc, char** argv) {
   auto pub_sig = Dense<Fp256Base>(1, Csig->npub_in);
   auto pub_hash = Dense<f_128>(1, Chash->npub_in);
   sigc::fill(pub_sig, true, v, nullptr, gmacs2, av2);
-  hashc::fill(pub_hash, true, *Chash, Fs, compact, now, claims, vct, nonce, aud, ctxh, nullhash, secret, blind, nullptr, gmacs2, av2);
+  hashc::fill(pub_hash, true, *Chash, Fs, compact, now, claims, vct, nonce, aud, ctxh, nullhash, secret, blind, assertVals, nullptr, gmacs2, av2);
   bool vh = hash_v.verify(pr_h, pub_hash, tv);
   bool vsg = sig_v.verify(pr_s, pub_sig, tv);
   long verify_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - tv0).count();

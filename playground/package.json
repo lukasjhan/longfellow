@@ -25,6 +25,7 @@
     "demo:mdoc-nullifier-blind": "node src/demo-mdoc-nullifier-blind.js",
     "scenario:voting": "node src/scenario-voting.js",
     "scenario:voting-sdjwt": "node src/scenario-voting-sdjwt.js",
+    "scenario:voting-sdjwt-assert": "node src/scenario-voting-sdjwt-assert.js",
     "issue": "node src/playground.js issue",
     "present": "node src/playground.js present",
     "verify": "node src/playground.js verify",
