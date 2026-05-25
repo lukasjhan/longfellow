@@ -212,3 +212,37 @@ native/sdjwt_null_blind fixtures/sdjwt-blind.txt fixtures/issuer-jwk-blind.json 
   "age_over_18" "https://credentials.example/pid" 1234567890 https://verifier.example "shop-A"
 # env: EVIL_NULL=1 (forged nullifier), EVIL_SECRET=1 (secret doesn't open C), TAMPER=1 (break MAC)
 ```
+
+### 10.8 Usage: disclose vs assert per claim
+
+The `<claims>` argument is comma-separated; each claim picks its own mode:
+
+| Claim syntax | Mode | Effect |
+|---|---|---|
+| `name` | **disclose** | reveal the value to the verifier (prints `disclosed: name = value`) |
+| `name=<json>` | **assert** | prove `value == <json>` **without revealing it** (prints `asserted: name == <json>`); a mismatch yields no proof |
+
+Both share the **same circuit and cache** — the value is a public input (`pattern`); only its source differs (disclose = the holder's value, assert = the verifier's required value). You can mix modes in one proof.
+
+Value format (assert) — `<json>` is the JSON encoding of the value:
+
+| Type | Example | Note |
+|---|---|---|
+| string | `resident_city="Seoul"` | include the quotes |
+| boolean | `age_over_18=true` | no quotes |
+| number | `height=175` | no quotes |
+
+```bash
+# disclose — reveal the values
+native/sdjwt_null_blind … 1700000000 "age_over_18,resident_city" "https://credentials.example/pid" …
+
+# assert — prove the values, hidden; single-quote the arg to keep the inner "
+native/sdjwt_null_blind … 1700000000 'age_over_18=true,resident_city="Seoul"' "https://credentials.example/pid" …
+
+# mixed — assert age (hidden), disclose city (revealed)
+native/sdjwt_null_blind … 1700000000 'age_over_18=true,resident_city' "https://credentials.example/pid" …
+```
+
+> Shell gotcha: an unquoted `resident_city="Seoul"` loses its quotes (→ `resident_city=Seoul`, a non-string) and the pattern won't match — wrap the whole claims arg in `'…'`. In JS, `JSON.stringify(value)` produces the right form (see `src/scenario-voting-sdjwt-assert.js`).
+>
+> When to use which: **disclose** when the verifier needs the value (display, range/set policy); **assert** when a yes/no suffices and you want to hide the value on mismatch. Conceptual comparison: [`voting-scenario_analysis-report.md`](voting-scenario_analysis-report.md) §5 / §5.1.

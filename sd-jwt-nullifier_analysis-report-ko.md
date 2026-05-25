@@ -212,3 +212,37 @@ native/sdjwt_null_blind fixtures/sdjwt-blind.txt fixtures/issuer-jwk-blind.json 
   "age_over_18" "https://credentials.example/pid" 1234567890 https://verifier.example "shop-A"
 # env: EVIL_NULL=1 (위조 nullifier), EVIL_SECRET=1 (secret이 C를 못 엶), TAMPER=1 (MAC 깨기)
 ```
+
+### 10.8 사용법: claim별 공개 vs 단언
+
+`<claims>` 인자는 콤마 구분이고, 각 claim이 모드를 고른다:
+
+| claim 표기 | 모드 | 효과 |
+|---|---|---|
+| `name` | **공개(disclose)** | 값을 검증자에게 드러냄 (`disclosed: name = value` 출력) |
+| `name=<json>` | **단언(assert)** | `value == <json>`을 **값 공개 없이** 증명 (`asserted: name == <json>` 출력); 불일치면 proof 없음 |
+
+둘은 **같은 회로·같은 캐시** — 값은 공개 입력(`pattern`)이고 출처만 다름(공개=홀더 값, 단언=검증자 요구값). 한 증명에 **섞어서도** 가능.
+
+값 표기(단언) — `<json>`은 값의 JSON 인코딩:
+
+| 타입 | 예시 | 비고 |
+|---|---|---|
+| 문자열 | `resident_city="Seoul"` | 따옴표 포함 |
+| 불리언 | `age_over_18=true` | 따옴표 없음 |
+| 숫자 | `height=175` | 따옴표 없음 |
+
+```bash
+# 공개 — 값을 드러냄
+native/sdjwt_null_blind … 1700000000 "age_over_18,resident_city" "https://credentials.example/pid" …
+
+# 단언 — 값을 숨긴 채 증명; 내부 " 보존 위해 인자 전체를 작은따옴표로
+native/sdjwt_null_blind … 1700000000 'age_over_18=true,resident_city="Seoul"' "https://credentials.example/pid" …
+
+# 혼합 — 나이는 단언(숨김), 도시는 공개
+native/sdjwt_null_blind … 1700000000 'age_over_18=true,resident_city' "https://credentials.example/pid" …
+```
+
+> 셸 함정: 따옴표 없이 `resident_city="Seoul"`을 쓰면 셸이 따옴표를 떼어(`resident_city=Seoul`, 문자열 아님) 패턴이 불일치 — claims 인자 전체를 `'…'`로 감쌀 것. JS에선 `JSON.stringify(value)`가 올바른 형태를 만듦(`src/scenario-voting-sdjwt-assert.js` 참고).
+>
+> 언제 뭘: 검증자가 값을 알아야 하면 **공개**(표시·범위/집합 정책); yes/no면 되고 불일치 시 값을 숨기려면 **단언**. 개념 비교: [`voting-scenario_analysis-report-ko.md`](voting-scenario_analysis-report-ko.md) §5 / §5.1.
