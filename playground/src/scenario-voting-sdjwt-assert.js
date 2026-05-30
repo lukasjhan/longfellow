@@ -76,7 +76,7 @@ async function main() {
       try { const { payload } = await jwtVerify(requestJwt, await importJWK(jwk, 'ES256'), { issuer: iss }); body = payload; break; }
       catch { /* not this key */ }
     }
-    if (!body) return { ok: false, reason: '요청 서명이 신뢰된 선관위 키로 검증 안 됨 → 거부 (proof 미생성)' };
+    if (!body) return { ok: false, reason: 'request signature not verified by a trusted EA key → reject (no proof generated)' };
     const res = zkAssert(body.require, body.nullifier_context, body.nonce, body.kb_aud);
     return { ok: true, body, ...res };
   }
@@ -86,78 +86,78 @@ async function main() {
   const seen = new Set();
   function ecCountVote(res, who) {
     if (!res.ok) return `❌ ${res.reason} — ${who}`;
-    if (!res.accept) return `❌ 요구조건 불충족 (자격/거주지/KB/nullifier 중 하나) — 실제값은 비공개 — ${who}`;
-    if (seen.has(res.nullifier)) return `❌ 이미 투표한 nullifier → 재투표 거부 — ${who}`;
+    if (!res.accept) return `❌ requirements unmet (one of eligibility/residence/KB/nullifier) — actual values not disclosed — ${who}`;
+    if (seen.has(res.nullifier)) return `❌ nullifier already voted → re-vote rejected — ${who}`;
     seen.add(res.nullifier);
-    return `✅ 투표 완료 (요구값 단언 성공, 실제값 비공개, nullifier 등록) — ${who}`;
+    return `✅ vote counted (required values asserted, actual values not disclosed, nullifier registered) — ${who}`;
   }
 
   const signReq = (key, iss, kid, require) => new SignJWT({
-    purpose: '2026 지방선거 투표소 본인확인(단언식)',
+    purpose: '2026 local election polling-station identity check (assert style)',
     require, nullifier_context: ELECTION, nonce: EC_NONCE, kb_aud: EC_AUD,
   }).setProtectedHeader({ alg: 'ES256', kid }).setIssuer(iss).setAudience('wallet')
     .setExpirationTime('5m').sign(key);
 
   console.log('\n'); line('═');
-  console.log('  익명·1인1표 투표 (SD-JWT-VC, ASSERT 단언식) — 값을 공개하지 않고 증명');
+  console.log('  anonymous one-person-one-vote (SD-JWT-VC, ASSERT style) — prove without disclosing values');
   line('═');
 
   line();
-  console.log('  [1] 발급 — SD-JWT-VC (성인, Seoul 거주, 커밋먼트 C); KB는 선관위 nonce/aud 결속');
+  console.log('  [1] issue — SD-JWT-VC (adult, Seoul residence, commitment C); KB bound to EA nonce/aud');
   line();
   if (fs.existsSync(path.join(ROOT, 'node_modules'))) {
-    try { sh('node', [GEN], { KB_NONCE: EC_NONCE, KB_AUD: EC_AUD }); console.log('  발급 완료 (발급자는 secret 모름)'); }
-    catch (e) { console.log('  (gen 실패; 기존 fixture)', e.message); }
-  } else console.log('  기존 fixture 사용');
+    try { sh('node', [GEN], { KB_NONCE: EC_NONCE, KB_AUD: EC_AUD }); console.log('  issued (issuer does not know the secret)'); }
+    catch (e) { console.log('  (gen failed; existing fixture)', e.message); }
+  } else console.log('  using existing fixture');
 
   line();
-  console.log('  [2] 선관위가 "요구값"을 담아 서명 요청 (age_over_18==true, resident_city=="Seoul")');
+  console.log('  [2] EA signs a request carrying the "required values" (age_over_18==true, resident_city=="Seoul")');
   line();
   const ecRequest = await signReq(ec.privateKey, 'seoul-election-commission', ecPubJwk.kid, REQUIRE_SEOUL);
-  console.log(`  EC request 서명됨 (요구값을 단언 — 홀더는 값을 공개하지 않음)`);
+  console.log(`  EC request signed (required values asserted — holder does not disclose the values)`);
 
   line();
-  console.log('  [3] 첫 투표 — 월렛이 "요구값에 부합함"을 ZK로 단언 (값 비공개)');
+  console.log('  [3] first vote — wallet asserts via ZK that it "matches the required values" (values not disclosed)');
   line();
   const v1 = await walletHandleRequest(ecRequest);
-  console.log(`  요청검증: ${v1.ok ? 'OK (신뢰된 선관위)' : '거부'}`);
-  console.log(`  단언내용: ${v1.asserted.join(', ')}  ← 회로가 강제 (실제값은 witness에 숨김)`);
-  console.log(`  ZK 증명 : ${v1.accept ? 'ACCEPT (요구값 모두 충족)' : 'REJECT'}`);
+  console.log(`  request check: ${v1.ok ? 'OK (trusted EA)' : 'rejected'}`);
+  console.log(`  asserted: ${v1.asserted.join(', ')}  ← enforced by the circuit (actual values hidden in the witness)`);
+  console.log(`  ZK proof : ${v1.accept ? 'ACCEPT (all required values satisfied)' : 'REJECT'}`);
   console.log(`  nullifier: ${v1.nullifier}`);
-  console.log('  선관위:', ecCountVote(v1, '유권자(첫 방문)'));
+  console.log('  EA:', ecCountVote(v1, 'voter (first visit)'));
   if (!v1.accept || !seen.has(v1.nullifier)) throw new Error('first vote should be counted');
 
   line();
-  console.log('  [4] 재투표 시도 — 같은 사람 (같은 secret → 같은 nullifier)');
+  console.log('  [4] re-vote attempt — same person (same secret → same nullifier)');
   line();
   const v2 = await walletHandleRequest(ecRequest);
-  console.log(`  nullifier: ${v2.nullifier}  ${v2.nullifier === v1.nullifier ? '(첫 투표와 동일)' : '(다름?!)'}`);
-  console.log('  선관위:', ecCountVote(v2, '유권자(재방문)'));
+  console.log(`  nullifier: ${v2.nullifier}  ${v2.nullifier === v1.nullifier ? '(same as first vote)' : '(different?!)'}`);
+  console.log('  EA:', ecCountVote(v2, 'voter (return visit)'));
   if (v2.nullifier !== v1.nullifier) throw new Error('same voter must yield same nullifier');
 
   line();
-  console.log('  [5] 타 지역 투표 — Busan 선관위가 resident_city=="Busan"을 요구');
+  console.log('  [5] wrong-district vote — Busan EA requires resident_city=="Busan"');
   line();
   const busanReq = await signReq(ec.privateKey, 'seoul-election-commission', ecPubJwk.kid, REQUIRE_BUSAN);
   const v5 = await walletHandleRequest(busanReq);
-  console.log(`  단언시도: resident_city=="Busan" → ZK ${v5.accept ? 'ACCEPT ❌' : 'REJECT ✅'}`);
-  console.log('  Busan 선관위:', ecCountVote(v5, '유권자'));
-  console.log('  → ★ DISCLOSE판과의 차이: 불일치 시 선관위는 실제 도시(Seoul)를 "전혀 알 수 없음".');
+  console.log(`  assert attempt: resident_city=="Busan" → ZK ${v5.accept ? 'ACCEPT ❌' : 'REJECT ✅'}`);
+  console.log('  Busan EA:', ecCountVote(v5, 'voter'));
+  console.log('  → ★ difference from the DISCLOSE variant: on a mismatch the EA learns "nothing at all" about the real city (Seoul).');
   if (v5.accept) throw new Error('SOUNDNESS: wrong-district assert accepted!');
 
   line();
-  console.log('  [6] 제3자(데이터브로커) 요청 — 자기 키로 서명');
+  console.log('  [6] third party (data broker) request — signs with own key');
   line();
   const brokerReq = await signReq(broker.privateKey, 'totally-not-the-ec', 'data-broker', REQUIRE_SEOUL);
   const harvest = await walletHandleRequest(brokerReq);
-  console.log(`  월렛: ${harvest.ok ? 'OK ❌' : harvest.reason}`);
+  console.log(`  wallet: ${harvest.ok ? 'OK ❌' : harvest.reason}`);
   if (harvest.ok) throw new Error('PRIVACY: wallet answered an untrusted requester!');
 
   console.log('\n'); line('═');
-  console.log('  결과: 자격을 "값 공개 없이" 단언 — 익명성·1인1표·요청권한·KB결속 충족');
-  console.log(`   • 첫 투표 ACCEPT, 재투표 REJECT (nullifier ${v1.nullifier.slice(0, 16)}…)`);
-  console.log('   • 요구값은 proof에 강제(검증자 정책 코드 불필요) — 회로 무변경(같은 캐시)');
-  console.log('   • ★ 불일치 시 실제값 비공개 (disclose판은 실제값을 드러냄) — 단언식 프라이버시 우위');
+  console.log('  result: eligibility asserted "without disclosing values" — anonymity, one-person-one-vote, request authorization, KB binding satisfied');
+  console.log(`   • first vote ACCEPT, re-vote REJECT (nullifier ${v1.nullifier.slice(0, 16)}…)`);
+  console.log('   • required values are enforced in the proof (no verifier policy code needed) — no circuit change (same cache)');
+  console.log('   • ★ on a mismatch the actual value is not disclosed (the disclose variant reveals it) — assert-style privacy advantage');
   line('═'); console.log('');
 }
 

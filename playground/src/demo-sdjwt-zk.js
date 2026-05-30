@@ -83,10 +83,10 @@ function main() {
 
   console.log('\n' + '═'.repeat(70));
   console.log('  ✅ full SD-JWT-VC selective-disclosure ZK — mdoc parity & beyond');
-  console.log('     issuer sig + Key Binding + sd_hash 바인딩 + exp + 3-attr _sd');
+  console.log('     issuer sig + Key Binding + sd_hash binding + exp + 3-attr _sd');
   console.log('     membership (mixed types incl. boolean/number), one ZK proof.');
-  console.log('     sd_hash 바인딩: 회로가 SHA(presented)==KB의 sd_hash 를 검증해');
-  console.log('     "공개한 disclosure ⊆ 홀더가 서명한 제시 묶음" 을 강제.');
+  console.log('     sd_hash binding: circuit verifies SHA(presented)==KB sd_hash to');
+  console.log('     enforce "disclosed disclosures ⊆ holder-signed presentation bundle".');
   console.log('═'.repeat(70) + '\n');
 }
 

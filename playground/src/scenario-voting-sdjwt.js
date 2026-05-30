@@ -88,7 +88,7 @@ async function main() {
         body = payload; break;
       } catch { /* not this trusted key */ }
     }
-    if (!body) return { ok: false, reason: '요청 서명이 신뢰된 선관위 키로 검증 안 됨 → 거부 (proof 미생성)' };
+    if (!body) return { ok: false, reason: 'request signature not verified by a trusted EA key → reject (no proof generated)' };
     const claims = body.require.map((r) => r.claim);
     const res = zkPresent(claims, body.nullifier_context, body.nonce, body.kb_aud);
     return { ok: true, body, ...res };
@@ -98,91 +98,91 @@ async function main() {
   const seen = new Set();
   function ecCountVote(res, requiredCity, who) {
     if (!res.ok) return `❌ ${res.reason} — ${who}`;
-    if (!res.accept) return `❌ ZK 증명 거부 (서명/KB/nullifier 불만족) — ${who}`;
-    if (res.disclosed.age_over_18 !== 'true') return `❌ 성인 아님 → 거부 — ${who}`;
+    if (!res.accept) return `❌ ZK proof rejected (signature/KB/nullifier unsatisfied) — ${who}`;
+    if (res.disclosed.age_over_18 !== 'true') return `❌ not an adult → reject — ${who}`;
     if (res.disclosed.resident_city !== requiredCity)
-      return `❌ 거주지 불일치 (공개값 ${res.disclosed.resident_city} ≠ 요구 ${requiredCity}) → 거부 — ${who}`;
-    if (seen.has(res.nullifier)) return `❌ 이미 투표한 nullifier → 재투표 거부 — ${who}`;
+      return `❌ residence mismatch (disclosed ${res.disclosed.resident_city} ≠ required ${requiredCity}) → reject — ${who}`;
+    if (seen.has(res.nullifier)) return `❌ nullifier already voted → re-vote rejected — ${who}`;
     seen.add(res.nullifier);
-    return `✅ 투표 완료 (성인✅ ${requiredCity}거주✅ nullifier 등록) — ${who}`;
+    return `✅ vote counted (adult✅ ${requiredCity} residence✅ nullifier registered) — ${who}`;
   }
 
   // `kb_aud` is the audience the KB-JWT must bind to (verified in-circuit); it is a
   // CUSTOM field, distinct from the request JWT's own standard `aud` ('wallet').
   const signReq = (key, iss, kid, extra) => new SignJWT({
-    purpose: '2026 지방선거 투표소 본인확인',
+    purpose: '2026 local election polling-station identity check',
     require: CLAIMS.map((c) => ({ claim: c })),
     nullifier_context: ELECTION, nonce: EC_NONCE, kb_aud: EC_AUD, ...extra,
   }).setProtectedHeader({ alg: 'ES256', kid }).setIssuer(iss).setAudience('wallet')
     .setExpirationTime('5m').sign(key);
 
   console.log('\n'); line('═');
-  console.log('  익명·1인1표 투표 시나리오 (SD-JWT-VC) — BLIND nullifier');
+  console.log('  anonymous one-person-one-vote scenario (SD-JWT-VC) — BLIND nullifier');
   line('═');
 
   // [1] ISSUE — KB bound to the EC nonce/aud; resident_city=Seoul; blind commitment
   line();
-  console.log('  [1] 발급 — SD-JWT-VC (성인, Seoul 거주, 가명 커밋먼트 C); KB는 선관위 nonce/aud에 결속');
+  console.log('  [1] issue — SD-JWT-VC (adult, Seoul residence, pseudonym commitment C); KB bound to EA nonce/aud');
   line();
   if (fs.existsSync(path.join(ROOT, 'node_modules'))) {
-    try { sh('node', [GEN], { KB_NONCE: EC_NONCE, KB_AUD: EC_AUD }); console.log('  발급 완료 → fixtures/sdjwt-blind.txt (발급자는 secret 모름)'); }
-    catch (e) { console.log('  (gen 실패; 기존 fixture)', e.message); }
-  } else console.log('  기존 fixture 사용');
+    try { sh('node', [GEN], { KB_NONCE: EC_NONCE, KB_AUD: EC_AUD }); console.log('  issued → fixtures/sdjwt-blind.txt (issuer does not know the secret)'); }
+    catch (e) { console.log('  (gen failed; existing fixture)', e.message); }
+  } else console.log('  using existing fixture');
 
   // [2] EC signs a request → wallet verifies
   line();
-  console.log('  [2] 선관위(EC)가 서명한 제시요청 → 월렛이 서명·권한 검증');
+  console.log('  [2] EA-signed presentation request → wallet verifies signature & authorization');
   line();
   const ecRequest = await signReq(ec.privateKey, 'seoul-election-commission', ecPubJwk.kid);
-  console.log(`  EC request 서명됨 (iss=seoul-election-commission, nonce=${EC_NONCE})`);
+  console.log(`  EC request signed (iss=seoul-election-commission, nonce=${EC_NONCE})`);
 
   // [3] FIRST VOTE
   line();
-  console.log('  [3] 첫 투표 — 월렛 ZK 제출 (성인 + Seoul 거주 + 선거 scope nullifier + KB nonce/aud)');
+  console.log('  [3] first vote — wallet submits ZK (adult + Seoul residence + election-scope nullifier + KB nonce/aud)');
   line();
   const v1 = await walletHandleRequest(ecRequest);
-  console.log(`  요청검증: ${v1.ok ? 'OK (신뢰된 선관위)' : '거부'}`);
-  console.log(`  공개값  : age_over_18=${v1.disclosed.age_over_18}, resident_city=${v1.disclosed.resident_city} (둘 다 _sd 멤버십으로 진본)`);
-  console.log(`  ZK 증명 : ${v1.accept ? 'ACCEPT (KB가 EC nonce/aud에 결속)' : 'REJECT'}`);
+  console.log(`  request check: ${v1.ok ? 'OK (trusted EA)' : 'rejected'}`);
+  console.log(`  disclosed: age_over_18=${v1.disclosed.age_over_18}, resident_city=${v1.disclosed.resident_city} (both authentic via _sd membership)`);
+  console.log(`  ZK proof : ${v1.accept ? 'ACCEPT (KB bound to EC nonce/aud)' : 'REJECT'}`);
   console.log(`  nullifier: ${v1.nullifier}`);
-  console.log('  선관위:', ecCountVote(v1, 'Seoul', '유권자(첫 방문)'));
+  console.log('  EA:', ecCountVote(v1, 'Seoul', 'voter (first visit)'));
   if (!v1.accept || !seen.has(v1.nullifier)) throw new Error('first vote should be counted');
 
   // [4] DOUBLE VOTE
   line();
-  console.log('  [4] 재투표 시도 — 같은 사람 (같은 secret → 같은 nullifier)');
+  console.log('  [4] re-vote attempt — same person (same secret → same nullifier)');
   line();
   const v2 = await walletHandleRequest(ecRequest);
-  console.log(`  nullifier: ${v2.nullifier}  ${v2.nullifier === v1.nullifier ? '(첫 투표와 동일)' : '(다름?!)'}`);
-  console.log('  선관위:', ecCountVote(v2, 'Seoul', '유권자(재방문)'));
+  console.log(`  nullifier: ${v2.nullifier}  ${v2.nullifier === v1.nullifier ? '(same as first vote)' : '(different?!)'}`);
+  console.log('  EA:', ecCountVote(v2, 'Seoul', 'voter (return visit)'));
   if (v2.nullifier !== v1.nullifier) throw new Error('same voter must yield same nullifier');
 
   // [5] WRONG DISTRICT — a Busan poll requires Busan; the holder can only prove Seoul
   line();
-  console.log('  [5] 타 지역 투표 시도 — Busan 선관위가 Busan 거주를 요구');
+  console.log('  [5] wrong-district attempt — Busan EA requires Busan residence');
   line();
   const v5 = await walletHandleRequest(ecRequest);   // holder still discloses authentic Seoul
-  console.log(`  공개값  : resident_city=${v5.disclosed.resident_city} (진본, 위조 불가)`);
-  console.log('  Busan 선관위:', ecCountVote({ ...v5 }, 'Busan', '유권자'));
-  console.log('  → 자격증명에 없는 도시는 공개조차 불가 → 거주지 위조 불가');
+  console.log(`  disclosed: resident_city=${v5.disclosed.resident_city} (authentic, cannot be forged)`);
+  console.log('  Busan EA:', ecCountVote({ ...v5 }, 'Busan', 'voter'));
+  console.log('  → a city not in the credential cannot even be disclosed → residence cannot be forged');
 
   // [6] THIRD-PARTY HARVEST
   line();
-  console.log('  [6] 제3자(데이터브로커)가 nullifier를 캐내려 요청 — 자기 키로 서명');
+  console.log('  [6] third party (data broker) requests to harvest the nullifier — signs with own key');
   line();
   const brokerReq = await signReq(broker.privateKey, 'totally-not-the-ec', 'data-broker');
   const harvest = await walletHandleRequest(brokerReq);
-  console.log(`  월렛: ${harvest.ok ? 'OK ❌' : harvest.reason}`);
+  console.log(`  wallet: ${harvest.ok ? 'OK ❌' : harvest.reason}`);
   if (harvest.ok) throw new Error('PRIVACY: wallet answered an untrusted requester!');
-  console.log('  → 월렛이 요청 서명을 선관위 키로 검증 실패 → proof 미생성.');
-  console.log('     (KB도 EC nonce/aud에 결속되어, 다른 nonce면 회로가 REJECT — 이중 방어)');
+  console.log('  → wallet fails to verify the request signature against the EA key → no proof.');
+  console.log('     (KB is also bound to EC nonce/aud, so a different nonce makes the circuit REJECT — double defense)');
 
   console.log('\n'); line('═');
-  console.log('  결과: 익명성·1인1표·자격(성인/거주지)·요청권한·KB결속 모두 충족');
-  console.log(`   • 첫 투표 ACCEPT, 재투표 REJECT (nullifier ${v1.nullifier.slice(0, 16)}…)`);
-  console.log('   • 거주지는 _sd 멤버십으로 진본 → 타 지역 위조 불가 (정책 거부)');
-  console.log('   • 제3자 요청 REJECT (월렛 RP 인증) + KB nonce/aud 회로 결속');
-  console.log('   • 발급자도 secret 모름 → 다른 scope로도 역추적 불가 (blind issuance)');
+  console.log('  result: anonymity, one-person-one-vote, eligibility (adult/residence), request authorization, KB binding all satisfied');
+  console.log(`   • first vote ACCEPT, re-vote REJECT (nullifier ${v1.nullifier.slice(0, 16)}…)`);
+  console.log('   • residence is authentic via _sd membership → other districts cannot be forged (policy reject)');
+  console.log('   • third-party request REJECT (wallet RP auth) + KB nonce/aud bound in circuit');
+  console.log('   • issuer does not know the secret either → no cross-scope tracing (blind issuance)');
   line('═'); console.log('');
 }
 

@@ -77,7 +77,7 @@ function main() {
   console.log(`  run #2: ${a2.nullifier}  ${a2.accept ? 'ACCEPT ✅' : 'REJECT ❌'}`);
   if (!a1.accept || !a2.accept) throw new Error('context-A should ACCEPT');
   if (a1.nullifier !== a2.nullifier) throw new Error('same (secret,context) must give the SAME nullifier!');
-  console.log('  → 같은 (secret, context) → 같은 nullifier ✅ (중복가입/Sybil 탐지 = DI)');
+  console.log('  → same (secret, context) → same nullifier ✅ (duplicate-signup/Sybil detection = DI)');
 
   console.log('\n' + '─'.repeat(70));
   console.log('  [3] context-B → must be a DIFFERENT nullifier (scopes unlinkable)');
@@ -86,20 +86,20 @@ function main() {
   console.log(`  context-B: ${b.nullifier}  ${b.accept ? 'ACCEPT ✅' : 'REJECT ❌'}`);
   if (!b.accept) throw new Error('context-B should ACCEPT');
   if (b.nullifier === a1.nullifier) throw new Error('different context must give a DIFFERENT nullifier!');
-  console.log('  → 다른 context → 다른 nullifier ✅ (서비스 간 연결 불가)');
+  console.log('  → different context → different nullifier ✅ (services cannot be linked)');
 
   console.log('\n' + '─'.repeat(70));
   console.log('  [4] ADVERSARIAL — claim a FORGED nullifier for the same secret/context');
   line();
   const evil = runNull('context-A', { EVIL_NULL: '1' });
-  console.log(`  → ${evil.accept ? 'ACCEPT ❌ (Sybil broken!)' : 'REJECT ✅ (한 scope당 nullifier 하나로 고정)'}`);
+  console.log(`  → ${evil.accept ? 'ACCEPT ❌ (Sybil broken!)' : 'REJECT ✅ (one nullifier fixed per scope)'}`);
   if (evil.accept) throw new Error('SOUNDNESS: a forged nullifier was accepted!');
 
   console.log('\n' + '═'.repeat(70));
-  console.log('  ✅ 가명 nullifier (CI/DI) on a REAL mdoc — 발급자 커밋 secret + ZK');
-  console.log('     nullifier = SHA(secret ‖ SHA(context)); secret은 MSO 멤버십+리터럴');
-  console.log('     앵커로 회로 안에서만 추출(비공개). 같은 scope=같은 가명(중복탐지),');
-  console.log('     다른 scope=비연결, 위조=거부. mdoc Signature+Hash 2회로에 MAC 결속.');
+  console.log('  ✅ pseudonymous nullifier (CI/DI) on a REAL mdoc — issuer-committed secret + ZK');
+  console.log('     nullifier = SHA(secret ‖ SHA(context)); secret extracted in-circuit only');
+  console.log('     via MSO membership + literal anchor (private). same scope=same pseudonym (dedup),');
+  console.log('     different scope=unlinkable, forged=reject. MAC-linked across mdoc Signature+Hash circuits.');
   console.log('═'.repeat(70) + '\n');
 }
 

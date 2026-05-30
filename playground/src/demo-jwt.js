@@ -34,16 +34,16 @@ async function main() {
   fs.mkdirSync(DIR, { recursive: true });
 
   // 1) ISSUE ----------------------------------------------------------------
-  step(1, `ISSUE  — 예제 SD-JWT-VC(+KB) 토큰 #${index} 로드 (ES256 서명됨)`);
+  step(1, `ISSUE  — load example SD-JWT-VC(+KB) token #${index} (ES256-signed)`);
   const issued = issueExampleJwt({ index, outdir: DIR });
   console.log('  issuer pkx :', issued.pkx.slice(0, 26) + '…');
   console.log('  e2 (KB hash):', issued.e2.slice(0, 26) + '…');
   console.log('  sha_blocks :', issued.sha_blocks);
   console.log('  note       :', issued.note);
-  console.log('  token      :', p('jwt.txt'), `(${fs.readFileSync(p('jwt.txt')).length} chars, 비공개 witness)`);
+  console.log('  token      :', p('jwt.txt'), `(${fs.readFileSync(p('jwt.txt')).length} chars, private witness)`);
 
   // 2) PRESENT --------------------------------------------------------------
-  step(2, `PRESENT — "${attrId}":"${attrValue}" 가 토큰에 있음을 영지식 증명`);
+  step(2, `PRESENT — zero-knowledge prove "${attrId}":"${attrValue}" is in the token`);
   const pr = jwtProve({
     jwt: p('jwt.txt'),
     pkx: issued.pkx,
@@ -58,7 +58,7 @@ async function main() {
   console.log(`  proof ${pr.proof_len}B in ${pr.prove_ms}ms (sha_blocks=${pr.sha_blocks})`);
 
   // 3) VERIFY (valid) — verifier does NOT get the token ---------------------
-  step(3, 'VERIFY — 토큰 없이(pk·e2·attr만) 검증 (expect ACCEPT)');
+  step(3, 'VERIFY — verify without the token (pk·e2·attr only) (expect ACCEPT)');
   const v1 = jwtVerify({
     pkx: issued.pkx,
     pky: issued.pky,
@@ -72,9 +72,9 @@ async function main() {
   if (!v1.ok) throw new Error('expected accept');
 
   // 4) VERIFY (wrong value) -------------------------------------------------
-  step(4, 'VERIFY — 다른 값으로 클레임 (expect REJECT)');
+  step(4, 'VERIFY — claim a different value (expect REJECT)');
   const wrong = attrValue.slice(0, -1) + (attrValue.endsWith('z') ? 'y' : 'z');
-  console.log(`  "${attrId}":"${attrValue}" → "${attrId}":"${wrong}" 로 위조`);
+  console.log(`  forging "${attrId}":"${attrValue}" → "${attrId}":"${wrong}"`);
   const v2 = jwtVerify({
     pkx: issued.pkx,
     pky: issued.pky,
@@ -88,8 +88,8 @@ async function main() {
   if (v2.ok) throw new Error('SECURITY: wrong value accepted!');
 
   console.log('\n' + '═'.repeat(70));
-  console.log(`  ✅ SD-JWT ZK: "${attrId}=${attrValue}" 공개/검증 성공, 위조 거부`);
-  console.log('     (검증자는 토큰 원문을 보지 못함 — 서명·다른 클레임 비공개)');
+  console.log(`  ✅ SD-JWT ZK: "${attrId}=${attrValue}" disclosed/verified successfully, forgery rejected`);
+  console.log('     (verifier never sees the raw token — signature and other claims stay private)');
   console.log('═'.repeat(70) + '\n');
 }
 

@@ -523,7 +523,7 @@ int main(int argc, char** argv) {
 
   // public requested attribute(s). attr_id/attr_hex are comma-separated lists, so
   // a single proof can disclose several (e.g. "age_over_18,resident_city" with
-  // "f5,69eab980ed8facec8b9c" for true + tstr("김포시")).
+  // "f5,69eab980ed8facec8b9c" for true + tstr("Gimpo-si")).
   auto split = [](const std::string& s) {
     std::vector<std::string> out; size_t p = 0, q;
     while ((q = s.find(',', p)) != std::string::npos) { out.push_back(s.substr(p, q - p)); p = q + 1; }

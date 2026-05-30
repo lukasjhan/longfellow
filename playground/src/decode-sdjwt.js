@@ -47,13 +47,13 @@ function main() {
   console.log('  iat / exp   :', new Date(payload.iat * 1e3).toISOString(),
     '→', new Date(payload.exp * 1e3).toISOString());
   console.log('  _sd_alg     :', payload._sd_alg);
-  console.log('  _sd digests :', (payload._sd || []).length, '(서명된 다이제스트 집합)');
+  console.log('  _sd digests :', (payload._sd || []).length, '(signed digest set)');
   console.log('  cnf.jwk     :', payload.cnf?.jwk ? `present (${payload.cnf.jwk.crv})` : 'none');
 
   const sdSet = new Set(payload._sd || []);
 
   console.log('\n' + '═'.repeat(74));
-  console.log('  DISCLOSURES  (각 클레임을 개별 salt+해시 → _sd 멤버십이 곧 증명 단위)');
+  console.log('  DISCLOSURES  (each claim individually salt+hashed → _sd membership is the proof unit)');
   console.log('═'.repeat(74));
   console.log('  claim'.padEnd(16), 'type'.padEnd(8), 'value'.padEnd(16), 'digest∈_sd');
   console.log('  ' + '─'.repeat(70));
@@ -75,13 +75,13 @@ function main() {
   }
 
   console.log('\n' + '─'.repeat(74));
-  console.log(`  ${allOk ? '✅' : '❌'} 모든 disclosure 해시가 서명된 _sd에 포함됨`);
-  console.log('  → 회로가 증명할 것 (Approach C):');
-  console.log('     1) 발급자 ES256 서명이 payload(=_sd 포함)에 유효');
-  console.log('     2) (홀더) Key Binding 서명 유효');
-  console.log('     3) now ≤ exp  (유효기간)');
-  console.log('     4) 선택 disclosure: SHA(disclosure) ∈ _sd  +  (claim,value) 일치');
-  console.log('     ※ 값이 문자열/날짜/불리언/숫자 무엇이든 동일 — 파싱 불필요');
+  console.log(`  ${allOk ? '✅' : '❌'} all disclosure hashes are present in the signed _sd`);
+  console.log('  → what the circuit must prove (Approach C):');
+  console.log('     1) issuer ES256 signature valid over payload (incl. _sd)');
+  console.log('     2) (holder) Key Binding signature valid');
+  console.log('     3) now ≤ exp  (validity period)');
+  console.log('     4) selected disclosure: SHA(disclosure) ∈ _sd  +  (claim,value) match');
+  console.log('     ※ same regardless of value type string/date/bool/number — no parsing needed');
   console.log('─'.repeat(74) + '\n');
 }
 

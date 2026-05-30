@@ -162,7 +162,7 @@ int main() {
   const RSFp rsf_fp(fft, p256_base);
   const RSGf rsf_gf(Fs);
 
-  printf("SHA-256 ZK: Fp256 (소수체) vs GF(2^128) (이진체) — 회로크기 + prove/verify 시간\n\n");
+  printf("SHA-256 ZK: Fp256 (prime field) vs GF(2^128) (binary field) — circuit size + prove/verify time\n\n");
   for (size_t k : {4u, 13u, 18u}) {
     prove_bench<Fp256Base, RSFp>("Fp256", p256_base, P256_ID, rsf_fp, k);
     prove_bench<f_128, RSGf>("GF(2^128)", Fs, GF2_128_ID, rsf_gf, k);

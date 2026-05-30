@@ -92,34 +92,34 @@ function main() {
   const v1 = runSplit(1700000000); // now < exp
   show(v1.out);
   if (!v1.accept) throw new Error('expected both circuits to ACCEPT');
-  console.log('  → ACCEPT ✅  (sig 회로 + 해시 회로, 공유 MAC로 결속; a_v는 commit 후 트랜스크립트에서 유도)');
+  console.log('  → ACCEPT ✅  (sig circuit + hash circuit, bound by shared MAC; a_v derived from post-commit transcript)');
 
   console.log('\n' + '─'.repeat(70));
-  console.log('  [3] EXPIRED — now > exp → 해시 회로 REJECT (soundness)');
+  console.log('  [3] EXPIRED — now > exp → hash circuit REJECTs (soundness)');
   line();
   const v2 = runSplit(9999999999);
   console.log(`  → ${v2.accept ? 'ACCEPT ❌(unexpected)' : 'REJECT ✅'}`);
   if (v2.accept) throw new Error('expired credential was accepted!');
 
   console.log('\n' + '─'.repeat(70));
-  console.log('  [3b] ADVERSARIAL — 만료 토큰 + 악성 prover (EVIL_EXP: exp_idx→letters)');
-  console.log('       `"exp":` 앵커·자릿수 검증이 없으면 letters(>now)로 만료 우회 (수정 전엔 ACCEPT)');
+  console.log('  [3b] ADVERSARIAL — expired token + malicious prover (EVIL_EXP: exp_idx→letters)');
+  console.log('       without `"exp":` anchor / digit checks, letters(>now) bypass expiry (ACCEPT before the fix)');
   line();
   const v2b = runSplit(9999999999, { EVIL_EXP: '1' });
-  console.log(`  → ${v2b.accept ? 'ACCEPT ❌ (soundness broken!)' : 'REJECT ✅  (앵커가 우회를 차단)'}`);
+  console.log(`  → ${v2b.accept ? 'ACCEPT ❌ (soundness broken!)' : 'REJECT ✅  (anchor blocks the bypass)'}`);
   if (v2b.accept) throw new Error('SOUNDNESS: malicious exp_idx bypassed expiry!');
 
   console.log('\n' + '─'.repeat(70));
-  console.log('  [4] TAMPER — 번들의 mac_e 1비트 변조 → 양 회로 모두 REJECT (링크 강제 증명)');
+  console.log('  [4] TAMPER — flip 1 bit of mac_e in the bundle → BOTH circuits REJECT (link enforcement proof)');
   line();
   const v3 = runSplit(1700000000, { TAMPER: '1' });
   show(v3.out);
   // tamper mode: the binary exits 0 when BOTH correctly rejected (test PASS).
   if (!v3.ok || /FAIL/.test(v3.out)) throw new Error('tamper test did not enforce the link!');
-  console.log('  → 변조 시 양 회로 REJECT ✅  (MAC 링크가 실제로 load-bearing)');
+  console.log('  → on tamper both circuits REJECT ✅  (MAC link is actually load-bearing)');
 
   console.log('\n' + '─'.repeat(70));
-  console.log('  [5] BIG — 13속성 PID급 크레덴셜 (옛 상수면 초과로 깨졌을 토큰)');
+  console.log('  [5] BIG — 13-attribute PID-class credential (a token the old constants would have overflowed)');
   line();
   if (fs.existsSync(path.join(ROOT, 'node_modules'))) {
     try {
@@ -132,19 +132,19 @@ function main() {
     const hp = jwt.slice(0, jwt.indexOf('.', jwt.indexOf('.') + 1));
     const pres = big.slice(0, big.lastIndexOf('~') + 1);
     console.log(`  token: ${big.length} chars, ${big.split('~').length - 2} disclosures`);
-    console.log(`  header.payload ${hp.length}B → ${blocks(hp.length)} SHA블록 (옛 kMaxSHA=13 초과, 새 32 OK)`);
-    console.log(`  presented      ${pres.length}B → ${blocks(pres.length)} SHA블록 (옛 PB=18 초과, 새 44 OK)`);
+    console.log(`  header.payload ${hp.length}B → ${blocks(hp.length)} SHA blocks (exceeds old kMaxSHA=13, fits new 32)`);
+    console.log(`  presented      ${pres.length}B → ${blocks(pres.length)} SHA blocks (exceeds old PB=18, fits new 44)`);
     const vb = runSplit(1700000000, {}, BIGFIX, BIGJWK);
     show(vb.out);
     if (!vb.accept) throw new Error('big credential failed');
-    console.log('  → ACCEPT ✅  넉넉한 상수 덕에 큰 크레덴셜도 동작 (초과 시엔 명확한 에러)');
+    console.log('  → ACCEPT ✅  generous constants let large credentials work too (clear error on overflow)');
   } else {
-    console.log('  (big fixture 없음 — `BIG=1 pnpm run gen:sdjwt` 로 생성)');
+    console.log('  (no big fixture — create with `BIG=1 pnpm run gen:sdjwt`)');
   }
 
   console.log('\n' + '─'.repeat(70));
-  console.log('  [6] KB FRESHNESS — 검증자가 고른 nonce/aud에 홀더 KB 서명이 묶임');
-  console.log('       (재생 방지) — 신선한 nonce로 발급 → 같은 nonce면 ACCEPT, 다르면 REJECT');
+  console.log('  [6] KB FRESHNESS — holder KB signature bound to verifier-chosen nonce/aud');
+  console.log('       (replay prevention) — issue with a fresh nonce → same nonce ACCEPTs, different REJECTs');
   line();
   if (fs.existsSync(path.join(ROOT, 'node_modules'))) {
     const freshNonce = String(Math.floor(Math.random() * 1e10)).padStart(10, '0');
@@ -154,23 +154,23 @@ function main() {
       console.log(`  verifier nonce: ${freshNonce}`);
       const ok = runSplit(1700000000, {}, FIX, JWK, freshNonce);          // verifier expects the fresh nonce
       const stale = runSplit(1700000000, {}, FIX, JWK, '0000000000');     // replayed/stale nonce
-      console.log(`  → 같은 nonce: ${ok.accept ? 'ACCEPT ✅' : 'REJECT ❌(unexpected)'}`);
-      console.log(`  → 다른 nonce(재생): ${stale.accept ? 'ACCEPT ❌ (replay!)' : 'REJECT ✅  (freshness 강제)'}`);
+      console.log(`  → same nonce: ${ok.accept ? 'ACCEPT ✅' : 'REJECT ❌(unexpected)'}`);
+      console.log(`  → different nonce(replay): ${stale.accept ? 'ACCEPT ❌ (replay!)' : 'REJECT ✅  (freshness enforced)'}`);
       if (!ok.accept) throw new Error('matching nonce should ACCEPT');
       if (stale.accept) throw new Error('FRESHNESS: stale/replayed nonce was accepted!');
     } catch (e) {
       if (/FRESHNESS|matching nonce/.test(e.message)) throw e;
-      console.log('  (gen 실패 — freshness 단계 건너뜀)');
+      console.log('  (gen failed — skipping freshness step)');
     }
   } else {
-    console.log('  (node_modules 없음 — freshness 단계 건너뜀)');
+    console.log('  (no node_modules — skipping freshness step)');
   }
 
   console.log('\n' + '═'.repeat(70));
-  console.log('  ✅ SD-JWT-VC 선택공개 ZK — mdoc과 동일한 2회로 + MAC 아키텍처');
-  console.log('     Fp256 서명 회로(발급자 ES256 + 홀더 KB) + GF(2^128) 해시 회로');
-  console.log('     (SHA+exp+vct+cnf+sd_hash+N×멤버십/구조/consent)를 분리해');
-  console.log('     공통값 e/dpkx/dpky의 MAC로 건전하게 결속. prove ~4–6배 단축.');
+  console.log('  ✅ SD-JWT-VC selective-disclosure ZK — same 2-circuit + MAC architecture as mdoc');
+  console.log('     Fp256 signature circuit (issuer ES256 + holder KB) + GF(2^128) hash circuit');
+  console.log('     split (SHA+exp+vct+cnf+sd_hash+N×membership/structure/consent),');
+  console.log('     soundly bound by MAC over common values e/dpkx/dpky. prove ~4–6x faster.');
   console.log('═'.repeat(70) + '\n');
 }
 

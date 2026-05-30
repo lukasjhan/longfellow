@@ -38,7 +38,7 @@ function main() {
     console.log(`  document[${di}]  docType = ${docType}`);
     console.log('═'.repeat(70));
 
-    console.log('\n  ▶ ISSUER-SIGNED ATTRIBUTES  (← 이게 ZK로 공개 가능한 후보)');
+    console.log('\n  ▶ ISSUER-SIGNED ATTRIBUTES  (← these are the candidates disclosable in ZK)');
     if (nameSpaces instanceof Map) {
       for (const [ns, items] of nameSpaces) {
         console.log(`\n    namespace: ${ns}   (${items.length} attributes)`);
@@ -57,7 +57,7 @@ function main() {
     const issuerAuth = issuerSigned?.get('issuerAuth');
     if (Array.isArray(issuerAuth)) {
       const mso = decodeEmbedded(issuerAuth[2]);
-      console.log('\n  ▶ MSO (Mobile Security Object — 발급자가 ECDSA로 서명한 본문)');
+      console.log('\n  ▶ MSO (Mobile Security Object — the body the issuer signed with ECDSA)');
       if (mso instanceof Map) {
         console.log(`      digestAlgorithm : ${mso.get('digestAlgorithm')}`);
         const vd = mso.get('valueDigests');
@@ -76,20 +76,20 @@ function main() {
       }
       const sig = issuerAuth[3];
       if (isBytes(sig))
-        console.log(`      issuer signature: ECDSA ${sig[BYTES].length} bytes  (← ZK에서 숨겨짐)`);
+        console.log(`      issuer signature: ECDSA ${sig[BYTES].length} bytes  (← hidden in ZK)`);
     }
 
     const deviceSigned = doc.get('deviceSigned');
     if (deviceSigned instanceof Map) {
-      console.log('\n  ▶ DEVICE-SIGNED (세션 바인딩용 — present 시 디바이스 키로 서명)');
+      console.log('\n  ▶ DEVICE-SIGNED (for session binding — signed with the device key at present time)');
       console.log('      deviceAuth present:', deviceSigned.has('deviceAuth'));
     }
   });
 
   console.log('\n' + '─'.repeat(70));
-  console.log('  요약: 위 "ISSUER-SIGNED ATTRIBUTES"의 각 (id = 값)이 곧');
-  console.log('        longfellow로 "정확히 이 값"을 영지식 공개할 수 있는 항목입니다.');
-  console.log('        MSO 서명·다른 속성·deviceKey 등은 proof에서 숨겨집니다.');
+  console.log('  Summary: each (id = value) in "ISSUER-SIGNED ATTRIBUTES" above is an item');
+  console.log('        whose "exact value" can be zero-knowledge disclosed via longfellow.');
+  console.log('        The MSO signature, other attributes, deviceKey, etc. stay hidden in the proof.');
   console.log('─'.repeat(70) + '\n');
 }
 

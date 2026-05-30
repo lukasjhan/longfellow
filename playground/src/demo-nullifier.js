@@ -77,7 +77,7 @@ function main() {
   console.log(`  run #2: ${a2.nullifier}  ${a2.accept ? 'ACCEPT ✅' : 'REJECT ❌'}`);
   if (!a1.accept || !a2.accept) throw new Error('context-A should ACCEPT');
   if (a1.nullifier !== a2.nullifier) throw new Error('same (secret,context) must give the SAME nullifier!');
-  console.log('  → 같은 (secret, context) → 같은 nullifier ✅ (중복가입/Sybil 탐지 = DI)');
+  console.log('  → same (secret, context) → same nullifier ✅ (duplicate-signup/Sybil detection = DI)');
 
   console.log('\n' + '─'.repeat(70));
   console.log('  [3] context-B → must be a DIFFERENT nullifier (scopes unlinkable)');
@@ -86,7 +86,7 @@ function main() {
   console.log(`  context-B: ${b.nullifier}  ${b.accept ? 'ACCEPT ✅' : 'REJECT ❌'}`);
   if (!b.accept) throw new Error('context-B should ACCEPT');
   if (b.nullifier === a1.nullifier) throw new Error('different context must give a DIFFERENT nullifier!');
-  console.log('  → 다른 context → 다른 nullifier ✅ (서비스 간 연결 불가)');
+  console.log('  → different context → different nullifier ✅ (cross-service unlinkable)');
 
   console.log('\n' + '─'.repeat(70));
   console.log('  [4] empty context (global) → CI-like cross-service pseudonym');
@@ -94,19 +94,19 @@ function main() {
   const g = runNull('');
   console.log(`  global: ${g.nullifier}  ${g.accept ? 'ACCEPT ✅' : 'REJECT ❌'}`);
   if (!g.accept) throw new Error('global should ACCEPT');
-  console.log('  → 빈 context = 모든 곳에서 같은 값 (CI). scope를 주면 DI.');
+  console.log('  → empty context = same value everywhere (CI). give a scope and it is DI.');
 
   console.log('\n' + '─'.repeat(70));
   console.log('  [5] ADVERSARIAL — claim a FORGED nullifier for the same secret/context');
   line();
   const evil = runNull('context-A', { EVIL_NULL: '1' });
-  console.log(`  → ${evil.accept ? 'ACCEPT ❌ (Sybil broken!)' : 'REJECT ✅ (한 scope당 nullifier 하나로 고정)'}`);
+  console.log(`  → ${evil.accept ? 'ACCEPT ❌ (Sybil broken!)' : 'REJECT ✅ (locked to one nullifier per scope)'}`);
   if (evil.accept) throw new Error('SOUNDNESS: a forged nullifier was accepted!');
 
   console.log('\n' + '═'.repeat(70));
-  console.log('  ✅ 가명 nullifier (CI/DI) on SD-JWT-VC — 발급자 커밋 secret + ZK');
-  console.log('     nullifier = SHA(secret ‖ context); secret은 _sd 멤버십으로 숨김.');
-  console.log('     같은 scope=같은 가명(중복탐지), 다른 scope=비연결, 위조=거부.');
+  console.log('  ✅ pseudonymous nullifier (CI/DI) on SD-JWT-VC — issuer-committed secret + ZK');
+  console.log('     nullifier = SHA(secret ‖ context); secret hidden via _sd membership.');
+  console.log('     same scope=same pseudonym(dedup), different scope=unlinkable, forged=rejected.');
   console.log('═'.repeat(70) + '\n');
 }
 
