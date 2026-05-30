@@ -284,7 +284,7 @@ constexpr size_t MAXDD = (64 * MAXB * 6) / 8;
 constexpr size_t MAXPAT = 160;            // disclosure suffix `","claim",value]`
 constexpr size_t KBB = 6;                 // KB header.payload: up to 384 B
 constexpr size_t DECKB = 64 * KBB;
-constexpr size_t PB = 40;                 // presented bundle: up to 2560 B
+constexpr size_t PB = 44;                 // presented bundle: up to 2816 B
 constexpr size_t PRES = 64 * PB;
 
 static v8 vb(const LC& L, uint8_t c) { return L.template vbit<8>(c); }

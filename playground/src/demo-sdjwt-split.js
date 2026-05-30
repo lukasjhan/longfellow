@@ -133,7 +133,7 @@ function main() {
     const pres = big.slice(0, big.lastIndexOf('~') + 1);
     console.log(`  token: ${big.length} chars, ${big.split('~').length - 2} disclosures`);
     console.log(`  header.payload ${hp.length}B → ${blocks(hp.length)} SHA블록 (옛 kMaxSHA=13 초과, 새 32 OK)`);
-    console.log(`  presented      ${pres.length}B → ${blocks(pres.length)} SHA블록 (옛 PB=18 초과, 새 40 OK)`);
+    console.log(`  presented      ${pres.length}B → ${blocks(pres.length)} SHA블록 (옛 PB=18 초과, 새 44 OK)`);
     const vb = runSplit(1700000000, {}, BIGFIX, BIGJWK);
     show(vb.out);
     if (!vb.accept) throw new Error('big credential failed');
