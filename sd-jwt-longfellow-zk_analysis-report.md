@@ -78,6 +78,24 @@ so it cannot put different values into the two circuits (Schwartz–Zippel, forg
 Measurements (3 attributes, split): prove ≈ 1.6–2.0s, bundle ≈ 386KB (sig 194 + hash 192). The monolithic
 single Fp256 (`sdjwt_full`) is ≈ 13s, so the split is ~8× faster.
 
+### 3.1 Benchmark (measured)
+
+Wall-clock on an **AMD Ryzen 7 2700X** (8C/16T, 2018 desktop), **single-threaded** (one core at 100%), warm circuit cache, 3 runs averaged:
+
+| Variant | attrs | hash-circuit inputs | prove | verify | bundle |
+|---|---|---:|---:|---:|---:|
+| `sdjwt_split` | 3 | ~195k | ~1.94 s | ~0.79 s | 392 KB |
+| `sdjwt_null_split` (nullifier) | 1 | ~189k | ~1.84 s | ~0.71 s | 390 KB |
+| `sdjwt_null_blind` (blind nullifier) | 1 | ~189k | ~1.95 s | ~0.81 s | 389 KB |
+| `sdjwt_revoc_split` (revocation) | 1 | ~189k | ~1.95 s | ~0.82 s | 405 KB |
+
+- **Per presentation: prove ≈ 1.8–2.0 s, verify ≈ 0.7–0.8 s, proof ≈ 390–405 KB.**
+- **One-time circuit setup** (per geometry): cold build ≈ **31 s** (compiling the GF(2¹²⁸) hash circuit); cached zstd load thereafter ≈ **0.5 s** — the only setup cost per presentation.
+- The **hash circuit dominates** (≈189–195k inputs vs. 3.7k for the ECDSA sig circuit): prove time is mostly SHA + `_sd` membership over GF(2¹²⁸); the ECDSA sig circuit is comparatively tiny.
+- **Single-threaded** on this 2018 CPU — a modern CPU or a multi-threaded prover would cut these materially (cores are not yet used in parallel).
+- `revoc` is slightly heavier (extra CRA signature + 4th MAC → sig inputs 3739→5288, bundle +15 KB); prove/verify are otherwise within noise.
+- Peak RSS ≈ **390 MB**. The verifier-statement split (token-free verifier, §10/commits) adds no measurable cost — it is host-side input assembly only.
+
 ---
 
 ## 4. What it can / cannot do
