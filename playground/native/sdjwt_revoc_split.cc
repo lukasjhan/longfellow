@@ -423,6 +423,10 @@ int main(int argc, char** argv) {
   v.craPkX = p256_base.to_montgomery(sigc::nat_be(craPkx));
   v.craPkY = p256_base.to_montgomery(sigc::nat_be(craPky));
   v.espan_nat = sigc::nat_be(span_dg);
+  // holder-side public statement (verifier gets this, never the token). The
+  // hidden revocation_id is NOT a public pattern — only the regular claims are.
+  uint8_t e2_pub[32]; std::vector<std::string> patterns_pub;
+  if (!hashc::make_statement(compact, claims, {}, e2_pub, patterns_pub)) { printf("statement build failed\n"); return 1; }
   v.e_span = p256_base.to_montgomery(v.espan_nat);
   v.span_r = sigc::nat_be(span_r);
   v.span_s = sigc::nat_be(span_s);
@@ -528,8 +532,25 @@ int main(int argc, char** argv) {
   // build public inputs with the bundle's macs + the re-derived a_v.
   auto pub_sig = Dense<Fp256Base>(1, Csig->npub_in);
   auto pub_hash = Dense<f_128>(1, Chash->npub_in);
-  sigc::fill(pub_sig, true, v, nullptr, gmacs2, av2);
-  hashc::fill(pub_hash, true, *Chash, Fs, compact, now, claims, vct, nonce, aud, epoch, epoch_span, l_le, r_le, nullptr, gmacs2, av2);
+  // VERIFIER: public inputs from the issuer JWK + the CRA's trusted pubkey + the
+  // statement {e2, patterns} + the verifier's own epoch/now/vct/nonce/aud + the
+  // bundle macs/av — never the token. (sig public has the extra CRA pubkey, so
+  // it is filled inline here rather than via the common sigc::fill_public.)
+  Fp256Base::Elt vpkX, vpkY; sigc::pubkey_from_jwk(jwk, vpkX, vpkY);
+  Fp256Base::Elt vcraX = p256_base.to_montgomery(sigc::nat_be(craPkx));
+  Fp256Base::Elt vcraY = p256_base.to_montgomery(sigc::nat_be(craPky));
+  {
+    DenseFiller<Fp256Base> fs(pub_sig);
+    fs.push_back(p256_base.one());
+    fs.push_back(vpkX); fs.push_back(vpkY); fs.push_back(sigc::e2_elt_from_digest(e2_pub));
+    fs.push_back(vcraX); fs.push_back(vcraY);
+    for (int i = 0; i < 8; ++i) sigc::push_gf_bits(fs, gmacs2[i]);
+    sigc::push_gf_bits(fs, av2);
+  }
+  hashc::fill_public(pub_hash, now, vct, nonce, aud, Fs, 4, gmacs2, av2, e2_pub, patterns_pub,
+    [&](DenseFiller<f_128>& f) {  // feature public: revocation epoch (8 bytes LE)
+      for (size_t i = 0; i < 8; ++i) f.push_back((uint8_t)((epoch >> (8 * i)) & 0xff), 8, Fs);
+    });
   bool vh = hash_v.verify(pr_h, pub_hash, tv);
   bool vsg = sig_v.verify(pr_s, pub_sig, tv);
   long verify_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - tv0).count();
