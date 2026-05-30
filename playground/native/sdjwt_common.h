@@ -336,12 +336,12 @@ inline void declare_base(const LC& L, QuadCircuit<f_128>& Q, BaseInputs& in, siz
   in.nonce_len = L.template vinput<8>();
   for (auto& b : in.aud_pat) b = L.template vinput<8>();
   in.aud_len = L.template vinput<8>();
+  feat_pub();  // SEAM: feature public inputs (after aud, before e2)
   in.e2 = L.template vinput<256>();
   for (size_t s = 0; s < nattr; ++s) {
     for (auto& b : in.slot[s].pattern) b = L.template vinput<8>();
     in.slot[s].patlen = L.template vinput<8>();
   }
-  feat_pub();  // SEAM: feature public inputs (before macs)
   for (int i = 0; i < 2 * nv + 1; ++i) in.mac[i] = L.eltw_input();
   Q.private_input();
   in.e = L.template vinput<256>(); in.dpkx = L.template vinput<256>(); in.dpky = L.template vinput<256>();
@@ -562,6 +562,7 @@ inline bool fill_base(Dense<f_128>& W, bool pub_only, const std::string& compact
   f.push_back((uint8_t)nonce_pat.size(), 8, Fs);
   for (size_t i = 0; i < MAXAUD; ++i) f.push_back(i < aud_pat.size() ? (uint8_t)aud_pat[i] : 0, 8, Fs);
   f.push_back((uint8_t)aud_pat.size(), 8, Fs);
+  feat_pub(f);  // SEAM: feature public witness (after aud, before e2)
   push_rev_bits(f, kbdig, Fs);
   for (size_t s = 0; s < nattr; ++s) {
     std::string pat;
@@ -578,7 +579,6 @@ inline bool fill_base(Dense<f_128>& W, bool pub_only, const std::string& compact
     for (size_t i = 0; i < MAXPAT; ++i) f.push_back(i < pat.size() ? (uint8_t)pat[i] : 0, 8, Fs);
     f.push_back((uint8_t)pat.size(), 8, Fs);
   }
-  feat_pub(f);  // SEAM: feature public witness (before macs)
   for (int i = 0; i < 2 * nv; ++i) f.push_back(macs6[i]);
   f.push_back(av);
   if (pub_only) return true;
