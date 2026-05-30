@@ -175,6 +175,11 @@ int main(int argc, char** argv) {
   // ---- parse fixture; sample the prover's MAC key half a_p (committed) ----
   sigc::Parsed v;
   if (!sigc::parse(compact, jwk, v)) { printf("parse/sig material invalid\n"); return 1; }
+  // holder-side: the PUBLIC STATEMENT the holder hands the verifier alongside the
+  // proof — e2 (KB hash) + the disclosed `","name","value"]` per claim. This is
+  // ALL the verifier needs from the credential; it never sees the raw token.
+  uint8_t e2_pub[32]; std::vector<std::string> patterns_pub;
+  if (!hashc::make_statement(compact, claims, {}, e2_pub, patterns_pub)) { printf("statement build failed\n"); return 1; }
   SecureRandomEngine rng;
   Linker lk;
   { MACReference<f_128> mr; mr.sample(lk.ap, 6, &rng); }
@@ -276,8 +281,13 @@ int main(int argc, char** argv) {
   // build public inputs with the bundle's macs + the re-derived a_v.
   auto pub_sig = Dense<Fp256Base>(1, Csig->npub_in);
   auto pub_hash = Dense<f_128>(1, Chash->npub_in);
-  sigc::fill(pub_sig, true, v, nullptr, gmacs2, av2);
-  hashc::fill(pub_hash, true, *Chash, Fs, compact, now, claims, vct, nonce, aud, nullptr, gmacs2, av2);
+  // VERIFIER: public inputs are built WITHOUT the token. Inputs are the issuer
+  // pubkey (from its trusted JWK), the holder's statement {e2, disclosed
+  // name/value}, the verifier's own now/vct/nonce/aud, and macs/av from the
+  // bundle. Note: neither `compact` nor the full `v` parse appears below.
+  Fp256Base::Elt vpkX, vpkY; sigc::pubkey_from_jwk(jwk, vpkX, vpkY);
+  sigc::fill_public(pub_sig, vpkX, vpkY, sigc::e2_elt_from_digest(e2_pub), gmacs2, 3, av2);
+  hashc::fill_public(pub_hash, now, vct, nonce, aud, Fs, 3, gmacs2, av2, e2_pub, patterns_pub);
   bool vh = hash_v.verify(pr_h, pub_hash, tv);
   bool vsg = sig_v.verify(pr_s, pub_sig, tv);
   long verify_ms = (long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - tv0).count();

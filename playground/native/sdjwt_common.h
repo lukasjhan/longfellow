@@ -170,6 +170,28 @@ static Nat nat_be(const uint8_t* be){uint8_t t[Nat::kBytes];for(size_t i=0;i<Nat
 static void push_gf_bits(DenseFiller<Fp256Base>& f, const gf2k& g) {
   for (size_t j = 0; j < 128; ++j) f.push_back(g[j] ? p256_base.one() : p256_base.zero());
 }
+
+// ---- verifier-side: build the sig circuit's PUBLIC inputs from values the
+// verifier legitimately holds — issuer pubkey (from its trusted JWK) + e2 (the
+// KB hash, transmitted) + macs/av (from the bundle). Never touches the token.
+// Produces the exact same wire layout as the public head of sigc::fill.
+inline void pubkey_from_jwk(const std::string& jwkPath, Fp256Base::Elt& pkX, Fp256Base::Elt& pkY) {
+  std::string j = rf(jwkPath);
+  auto hx = [&](const char* k){ size_t i=j.find(k); i=j.find("0x",i); return j.substr(i, j.find('"',i)-i); };
+  pkX = p256_base.of_untrusted_string(hx("x_hex").c_str()).value();
+  pkY = p256_base.of_untrusted_string(hx("y_hex").c_str()).value();
+}
+inline Fp256Base::Elt e2_elt_from_digest(const uint8_t e2_digest[32]) {
+  return p256_base.to_montgomery(nat_be(e2_digest));
+}
+inline void fill_public(Dense<Fp256Base>& W, Fp256Base::Elt pkX, Fp256Base::Elt pkY,
+                        Fp256Base::Elt e2, const gf2k macs6[], int nv, gf2k av) {
+  DenseFiller<Fp256Base> f(W);
+  f.push_back(p256_base.one());
+  f.push_back(pkX); f.push_back(pkY); f.push_back(e2);
+  for (int i = 0; i < 2 * nv; ++i) push_gf_bits(f, macs6[i]);
+  push_gf_bits(f, av);
+}
 }  // namespace sigc
 
 // ===================== GF(2^128) hash circuit: shared base =====================
@@ -626,6 +648,70 @@ inline bool fill_base(Dense<f_128>& W, bool pub_only, const std::string& compact
   if (!feat_priv(f, enc, payload, discs)) return false;  // SEAM: feature private witness
   for (int i = 0; i < 2 * nv; ++i) f.push_back(ap[i]);  // SHARED, av-independent key
   return true;
+}
+
+// ===================== verifier-side public-input path =====================
+// The verifier must NOT need the raw token. make_statement() is run holder-side
+// to extract the public statement it sends the verifier — e2 (KB hash) and the
+// disclosed `","name","value"]` pattern per claim (in DISCLOSE the holder's
+// value, in ASSERT the verifier-required value). fill_public() then builds the
+// hash circuit's PUBLIC inputs from ONLY those values + the verifier's own
+// now/vct/nonce/aud + macs/av — producing the byte-identical public head of
+// fill_base, with no access to `compact`.
+
+inline bool make_statement(const std::string& compact, const std::vector<std::string>& claims,
+                           const std::vector<std::string>& assertVals,
+                           uint8_t e2_out[32], std::vector<std::string>& patterns_out) {
+  std::string kbjwt = compact.substr(compact.rfind('~') + 1);
+  size_t kd1 = kbjwt.find('.'), kd2 = kbjwt.find('.', kd1 + 1);
+  if (kd2 == std::string::npos) return false;
+  std::string kbhp = kbjwt.substr(0, kd2);
+  ::SHA256((const uint8_t*)kbhp.data(), kbhp.size(), e2_out);
+  std::vector<std::string> discs;
+  { size_t p = compact.find('~') + 1, q;
+    while ((q = compact.find('~', p)) != std::string::npos) { if (q > p) discs.push_back(compact.substr(p, q - p)); p = q + 1; } }
+  patterns_out.clear();
+  for (size_t s = 0; s < claims.size(); ++s) {
+    if (s < assertVals.size() && !assertVals[s].empty()) {
+      patterns_out.push_back("\",\"" + claims[s] + "\"," + assertVals[s] + "]");
+    } else {
+      std::string chosen, key = "\"" + claims[s] + "\"";
+      for (auto& d : discs) if (b64d(d).find(key) != std::string::npos) chosen = d;
+      if (chosen.empty()) return false;
+      std::string dj = b64d(chosen);
+      size_t salt_len = dj.find("\",\"") - 2;
+      patterns_out.push_back(dj.substr(2 + salt_len));
+    }
+  }
+  return true;
+}
+
+inline void fill_public(Dense<f_128>& W, const char* now, const std::string& vct,
+                        const std::string& nonce, const std::string& aud, const f_128& Fs,
+                        int nv, const gf2k macs6[], gf2k av, const uint8_t* e2_digest,
+                        const std::vector<std::string>& patterns,
+                        const std::function<void(DenseFiller<f_128>&)>& feat_pub =
+                            [](DenseFiller<f_128>&) {}) {
+  std::string vct_pat = "\"vct\":\"" + vct + "\"";
+  std::string nonce_pat = "\"nonce\":\"" + nonce + "\"";
+  std::string aud_pat = "\"aud\":\"" + aud + "\"";
+  DenseFiller<f_128> f(W);
+  f.push_back(Fs.one());
+  for (int i = 0; i < 10; ++i) f.push_back((uint8_t)now[i], 8, Fs);
+  for (size_t i = 0; i < MAXVCT; ++i) f.push_back(i < vct_pat.size() ? (uint8_t)vct_pat[i] : 0, 8, Fs);
+  f.push_back((uint8_t)vct_pat.size(), 8, Fs);
+  for (size_t i = 0; i < MAXNONCE; ++i) f.push_back(i < nonce_pat.size() ? (uint8_t)nonce_pat[i] : 0, 8, Fs);
+  f.push_back((uint8_t)nonce_pat.size(), 8, Fs);
+  for (size_t i = 0; i < MAXAUD; ++i) f.push_back(i < aud_pat.size() ? (uint8_t)aud_pat[i] : 0, 8, Fs);
+  f.push_back((uint8_t)aud_pat.size(), 8, Fs);
+  feat_pub(f);  // feature public values (nullifier/epoch) — also verifier-known, no token
+  push_rev_bits(f, e2_digest, Fs);
+  for (const auto& pat : patterns) {
+    for (size_t i = 0; i < MAXPAT; ++i) f.push_back(i < pat.size() ? (uint8_t)pat[i] : 0, 8, Fs);
+    f.push_back((uint8_t)pat.size(), 8, Fs);
+  }
+  for (int i = 0; i < 2 * nv; ++i) f.push_back(macs6[i]);
+  f.push_back(av);
 }
 }  // namespace hashc
 
