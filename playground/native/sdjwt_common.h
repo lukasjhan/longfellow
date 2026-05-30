@@ -290,6 +290,343 @@ inline bool check_capacity(const std::string& compact, const std::vector<std::st
   }
   return true;
 }
+
+// ===================== hash-circuit shared base (declare / assert / fill) =====
+// The split / null_split / null_blind / revoc CLIs share this base; each adds
+// only its own feature block at the well-defined SEAMS below. The input WIRE
+// ORDER lives ONLY here (declare_base / fill_base), so prover and verifier can
+// never disagree on it. nv = number of MAC-linked Fp256 values (3 normally; 4
+// for revocation's extra e_span).
+
+struct Slot {
+  v8 pattern[MAXPAT]; v8 patlen;
+  v8 disc_pre[64 * MAXB]; v256 disc_ebits; SBW disc_sha[MAXB]; v8 disc_nb;
+  LC::bitvec<8> disc_len, disc_shift; LC::bitvec<LOGM> sd_idx;
+};
+
+// Base inputs common to all features. mac[]/macw[] are sized for the widest
+// case (nv=4); a circuit declares/fills only the first 2*nv+1 mac and nv macw.
+// Feature .cc files derive `struct Inputs : BaseInputs { ...extra fields... }`.
+struct BaseInputs {
+  v8 now[10]; v8 vct_pat[MAXVCT]; v8 vct_len;
+  v8 nonce_pat[MAXNONCE]; v8 nonce_len; v8 aud_pat[MAXAUD]; v8 aud_len;
+  v256 e2;
+  std::vector<Slot> slot; MACTag mac[9];
+  v256 e, dpkx, dpky;
+  v8 preimage[PRE]; SBW sha[kMaxSHA]; v8 nb;
+  LC::bitvec<LOGM> payload_ind, payload_len, exp_idx, vct_idx, cnf_x_idx, cnf_y_idx;
+  v8 kb_pre[DECKB]; SBW kb_sha[KBB]; v8 kb_nb;
+  LC::bitvec<LOGM> kb_pl_ind, kb_pl_len, sd_hash_idx, nonce_idx, aud_idx;
+  v8 presented[PRES]; SBW pres_sha[PB]; v8 pres_nb; v256 pres_hash_bits;
+  std::vector<LC::bitvec<LOGM>> disc_in_pres;
+  MACW macw[4];
+};
+
+// declare circuit inputs. feat_pub() runs after the base public inputs and
+// BEFORE the macs; feat_priv() runs after the base private inputs and BEFORE
+// begin_full_field()/macw. (Same seams a feature uses in fill_base.)
+inline void declare_base(const LC& L, QuadCircuit<f_128>& Q, BaseInputs& in, size_t nattr, int nv,
+                         const std::function<void()>& feat_pub = [] {},
+                         const std::function<void()>& feat_priv = [] {}) {
+  in.slot.resize(nattr); in.disc_in_pres.resize(nattr);
+  for (auto& b : in.now) b = L.template vinput<8>();
+  for (auto& b : in.vct_pat) b = L.template vinput<8>();
+  in.vct_len = L.template vinput<8>();
+  for (auto& b : in.nonce_pat) b = L.template vinput<8>();
+  in.nonce_len = L.template vinput<8>();
+  for (auto& b : in.aud_pat) b = L.template vinput<8>();
+  in.aud_len = L.template vinput<8>();
+  in.e2 = L.template vinput<256>();
+  for (size_t s = 0; s < nattr; ++s) {
+    for (auto& b : in.slot[s].pattern) b = L.template vinput<8>();
+    in.slot[s].patlen = L.template vinput<8>();
+  }
+  feat_pub();  // SEAM: feature public inputs (before macs)
+  for (int i = 0; i < 2 * nv + 1; ++i) in.mac[i] = L.eltw_input();
+  Q.private_input();
+  in.e = L.template vinput<256>(); in.dpkx = L.template vinput<256>(); in.dpky = L.template vinput<256>();
+  for (auto& b : in.preimage) b = L.template vinput<8>();
+  for (auto& s : in.sha) s.input(L);
+  in.nb = L.template vinput<8>();
+  in.payload_ind = L.template vinput<LOGM>(); in.payload_len = L.template vinput<LOGM>();
+  in.exp_idx = L.template vinput<LOGM>(); in.vct_idx = L.template vinput<LOGM>();
+  in.cnf_x_idx = L.template vinput<LOGM>(); in.cnf_y_idx = L.template vinput<LOGM>();
+  for (auto& b : in.kb_pre) b = L.template vinput<8>();
+  for (auto& s : in.kb_sha) s.input(L);
+  in.kb_nb = L.template vinput<8>();
+  in.kb_pl_ind = L.template vinput<LOGM>(); in.kb_pl_len = L.template vinput<LOGM>(); in.sd_hash_idx = L.template vinput<LOGM>();
+  in.nonce_idx = L.template vinput<LOGM>(); in.aud_idx = L.template vinput<LOGM>();
+  for (auto& b : in.presented) b = L.template vinput<8>();
+  for (auto& s : in.pres_sha) s.input(L);
+  in.pres_nb = L.template vinput<8>();
+  in.pres_hash_bits = L.template vinput<256>();
+  for (size_t s = 0; s < nattr; ++s) in.disc_in_pres[s] = L.template vinput<LOGM>();
+  for (size_t s = 0; s < nattr; ++s) {
+    Slot& sl = in.slot[s];
+    for (auto& b : sl.disc_pre) b = L.template vinput<8>();
+    sl.disc_ebits = L.template vinput<256>();
+    for (auto& x : sl.disc_sha) x.input(L);
+    sl.disc_nb = L.template vinput<8>();
+    sl.disc_len = L.template vinput<8>(); sl.disc_shift = L.template vinput<8>();
+    sl.sd_idx = L.template vinput<LOGM>();
+  }
+  feat_priv();  // SEAM: feature private inputs (before begin_full_field/macw)
+  Q.begin_full_field();
+  for (int i = 0; i < nv; ++i) in.macw[i].input(L);
+}
+
+// Shared primitives + decoded payload handed to a feature's assert hook, so the
+// feature reuses them instead of re-decoding the payload (which would duplicate
+// constraints). dec = decoded issuer payload buffer (DECP bytes).
+struct HashCtx {
+  const LC& L; Routing<LC>& r; FlatSHA& sha; MAC& mac_check; Base64Decoder<LC>& b64;
+  const v8& zero; const v8* dec; int nv;
+};
+
+// assert the base statement (SHA + exp + vct + cnf + KB + sd_hash + nonce/aud +
+// N×membership/structural/consent), then feat(ctx) (the feature block), then
+// the nv standard MAC verifications (e/dpkx/dpky; av = mac[2*nv]). A feature
+// that MACs extra values (revocation's e_span) verifies them inside feat().
+inline void assert_base(const LC& L, const BaseInputs& in, int nv,
+                        const std::function<void(HashCtx&)>& feat = [](HashCtx&) {}) {
+  size_t nattr = in.slot.size();
+  v8 zero = vb(L, 0);
+  Routing<LC> r(L); FlatSHA sha(L); MAC mac_check(L); Base64Decoder<LC> b64(L);
+
+  sha.assert_message_hash(kMaxSHA, in.nb, in.preimage, in.e, in.sha);
+  v8 shbuf[DECP];
+  r.shift(in.payload_ind, DECP, shbuf, PRE, in.preimage, zero, 3);
+  v8 dec[DECP];
+  LC::bitvec<LOGM> plen(in.payload_len);
+  b64.base64_rawurl_decode_len(shbuf, dec, DECP, plen);
+
+  // exp: anchor to `"exp":` (exp_idx -> opening `"`), require 10 ASCII digits +
+  // delimiter, then now<=exp. Prevents pointing exp_idx at a >=now letters window.
+  {
+    v8 ew[17];
+    r.shift(in.exp_idx, 17, ew, DECP, dec, zero, 3);
+    static const char EK[6] = {'"', 'e', 'x', 'p', '"', ':'};
+    for (size_t j = 0; j < 6; ++j)
+      L.assert1(L.eq(8, ew[j].data(), vb(L, (uint8_t)EK[j]).data()));
+    v8 c0 = vb(L, '0'), c9 = vb(L, '9');
+    for (size_t j = 6; j < 16; ++j) {
+      L.assert1(L.lnot(L.lt(8, ew[j].data(), c0.data())));
+      L.assert1(L.lnot(L.lt(8, c9.data(), ew[j].data())));
+    }
+    L.assert1(L.lor(L.eq(8, ew[16].data(), vb(L, ',').data()),
+                    L.eq(8, ew[16].data(), vb(L, '}').data())));
+    L.assert1(leq_bytes(L, in.now, &ew[6], 10));
+  }
+
+  v8 vs[MAXVCT];
+  r.shift(in.vct_idx, MAXVCT, vs, DECP, dec, zero, 3);
+  for (size_t j = 0; j < MAXVCT; ++j)
+    L.assert_implies(L.vlt(j, in.vct_len), L.eq(8, vs[j].data(), in.vct_pat[j].data()));
+
+  auto check_coord = [&](const LC::bitvec<LOGM>& idx, const v256& bits) {
+    v8 cc[43];
+    r.shift(idx, 43, cc, DECP, dec, zero, 3);
+    v8 out[33];
+    b64.base64_rawurl_decode(cc, out, 43);
+    assert_bits_eq_bytes(L, bits, out);
+  };
+  check_coord(in.cnf_x_idx, in.dpkx);
+  check_coord(in.cnf_y_idx, in.dpky);
+
+  sha.assert_message_hash(KBB, in.kb_nb, in.kb_pre, in.e2, in.kb_sha);
+  v8 kbshift[DECKB];
+  r.shift(in.kb_pl_ind, DECKB, kbshift, DECKB, in.kb_pre, zero, 3);
+  v8 kbdec[DECKB];
+  LC::bitvec<LOGM> kbpl(in.kb_pl_len);
+  b64.base64_rawurl_decode_len(kbshift, kbdec, DECKB, kbpl);
+  // KB freshness/audience: holder-signed KB payload must contain verifier-chosen
+  // nonce/aud (pattern includes `"nonce":"`/`"aud":"` literal + closing quote).
+  {
+    v8 ns[MAXNONCE];
+    r.shift(in.nonce_idx, MAXNONCE, ns, DECKB, kbdec, zero, 3);
+    for (size_t j = 0; j < MAXNONCE; ++j)
+      L.assert_implies(L.vlt(j, in.nonce_len), L.eq(8, ns[j].data(), in.nonce_pat[j].data()));
+    v8 as[MAXAUD];
+    r.shift(in.aud_idx, MAXAUD, as, DECKB, kbdec, zero, 3);
+    for (size_t j = 0; j < MAXAUD; ++j)
+      L.assert_implies(L.vlt(j, in.aud_len), L.eq(8, as[j].data(), in.aud_pat[j].data()));
+  }
+  v8 sdh_b64[43];
+  r.shift(in.sd_hash_idx, 43, sdh_b64, DECKB, kbdec, zero, 3);
+  v8 sdh[33];
+  b64.base64_rawurl_decode(sdh_b64, sdh, 43);
+  sha.assert_message_hash(PB, in.pres_nb, in.presented, in.pres_hash_bits, in.pres_sha);
+  for (size_t j = 0; j < 32; ++j) {
+    v8 tb;
+    for (size_t c = 0; c < 8; ++c) tb[c] = in.pres_hash_bits[8 * (31 - j) + c];
+    L.assert1(L.eq(8, sdh[j].data(), tb.data()));
+  }
+
+  for (size_t s = 0; s < nattr; ++s) {
+    const Slot& sl = in.slot[s];
+    sha.assert_message_hash(MAXB, sl.disc_nb, sl.disc_pre, sl.disc_ebits, sl.disc_sha);
+    v8 entry[43];
+    r.shift(sl.sd_idx, 43, entry, DECP, dec, zero, 3);
+    v8 out[33];
+    b64.base64_rawurl_decode(entry, out, 43);
+    assert_bits_eq_bytes(L, sl.disc_ebits, out);
+    v8 dd[MAXDD];
+    LC::bitvec<8> dlen(sl.disc_len);
+    b64.base64_rawurl_decode_len(sl.disc_pre, dd, 64 * MAXB, dlen);
+    L.assert1(L.eq(8, dd[0].data(), vb(L, '[').data()));
+    L.assert1(L.eq(8, dd[1].data(), vb(L, '"').data()));
+    v8 S[MAXPAT];
+    r.shift(sl.disc_shift, MAXPAT, S, MAXDD, dd, zero, 3);
+    for (size_t j = 0; j < MAXPAT; ++j)
+      L.assert_implies(L.vlt(j, sl.patlen), L.eq(8, S[j].data(), sl.pattern[j].data()));
+    v8 ps[64 * MAXB];
+    r.shift(in.disc_in_pres[s], 64 * MAXB, ps, PRES, in.presented, zero, 3);
+    for (size_t j = 0; j < 64 * MAXB; ++j)
+      L.assert_implies(L.vlt(j, sl.disc_len), L.eq(8, ps[j].data(), sl.disc_pre[j].data()));
+  }
+
+  HashCtx ctx{L, r, sha, mac_check, b64, zero, dec, nv};
+  feat(ctx);  // SEAM: feature constraints (nullifier / revocation), incl any extra MAC
+
+  mac_check.verify_mac(&in.mac[0], in.mac[2 * nv], in.e, in.macw[0]);
+  mac_check.verify_mac(&in.mac[2], in.mac[2 * nv], in.dpkx, in.macw[1]);
+  mac_check.verify_mac(&in.mac[4], in.mac[2 * nv], in.dpky, in.macw[2]);
+}
+
+// Fill the hash-circuit witness. feat_pub(f) runs after the base public values
+// and BEFORE the macs; feat_priv(f, enc, payload, discs) runs after the base
+// private witness and BEFORE the ap (macw) tail — same seams as declare_base.
+// feat_priv returns false to abort (e.g. a required feature claim is missing).
+inline bool fill_base(Dense<f_128>& W, bool pub_only, const std::string& compact, const char* now,
+                      const std::vector<std::string>& claims, const std::string& vct,
+                      const std::string& nonce, const std::string& aud, const f_128& Fs,
+                      int nv, const gf2k macs6[], gf2k av, const gf2k* ap,
+                      const std::function<void(DenseFiller<f_128>&)>& feat_pub =
+                          [](DenseFiller<f_128>&) {},
+                      const std::function<bool(DenseFiller<f_128>&, BitPluckerEncoder<f_128, 4>&,
+                                               const std::string&, const std::vector<std::string>&)>&
+                          feat_priv = [](DenseFiller<f_128>&, BitPluckerEncoder<f_128, 4>&,
+                                         const std::string&, const std::vector<std::string>&) { return true; },
+                      const std::vector<std::string>& assertVals = {}) {
+  size_t nattr = claims.size();
+  std::string jwt = compact.substr(0, compact.find('~'));
+  size_t d1 = jwt.find('.'), d2 = jwt.find('.', d1 + 1);
+  std::string msg = jwt.substr(0, d2);
+  std::string payload_b64 = jwt.substr(d1 + 1, d2 - d1 - 1);
+  std::string payload = b64d(payload_b64);
+  size_t exp_idx = payload.find("\"exp\":");  // points at the `"` of `"exp":` (in-circuit anchor)
+  std::string vct_pat = "\"vct\":\"" + vct + "\"";
+  size_t vct_idx = payload.find(vct_pat);
+  uint8_t edig[32]; ::SHA256((const uint8_t*)msg.data(), msg.size(), edig);
+  uint8_t in_pre[PRE]; FlatSHA256Witness::BlockWitness bw[kMaxSHA]; uint8_t numb = 0;
+  FlatSHA256Witness::transform_and_witness_message(msg.size(), (const uint8_t*)msg.data(), kMaxSHA, numb, in_pre, bw);
+  size_t cnf = payload.find("\"cnf\"");
+  size_t xi = payload.find("\"x\":\"", cnf) + 5, yi = payload.find("\"y\":\"", cnf) + 5;
+  std::string cx_raw = b64d(payload.substr(xi, 43)), cy_raw = b64d(payload.substr(yi, 43));
+
+  std::string kbjwt = compact.substr(compact.rfind('~') + 1);
+  size_t kd1 = kbjwt.find('.'), kd2 = kbjwt.find('.', kd1 + 1);
+  std::string kbhp = kbjwt.substr(0, kd2);
+  uint8_t kbdig[32]; ::SHA256((const uint8_t*)kbhp.data(), kbhp.size(), kbdig);
+  uint8_t kb_in[DECKB]; FlatSHA256Witness::BlockWitness kb_bw[KBB]; uint8_t kb_numb = 0;
+  FlatSHA256Witness::transform_and_witness_message(kbhp.size(), (const uint8_t*)kbhp.data(), KBB, kb_numb, kb_in, kb_bw);
+  std::string kb_pl_b64 = kbjwt.substr(kd1 + 1, kd2 - kd1 - 1);
+  std::string kb_pl = b64d(kb_pl_b64);
+  size_t sdh_pos = kb_pl.find("\"sd_hash\":\"") + 11;
+  std::string nonce_pat = "\"nonce\":\"" + nonce + "\"";
+  std::string aud_pat = "\"aud\":\"" + aud + "\"";
+  size_t nonce_pos = kb_pl.find("\"nonce\":\"");
+  size_t aud_pos = kb_pl.find("\"aud\":\"");
+  std::string presented = compact.substr(0, compact.rfind('~') + 1);
+  uint8_t pres_in[PRES]; FlatSHA256Witness::BlockWitness pres_bw[PB]; uint8_t pres_numb = 0;
+  FlatSHA256Witness::transform_and_witness_message(presented.size(), (const uint8_t*)presented.data(), PB, pres_numb, pres_in, pres_bw);
+  uint8_t predig[32]; ::SHA256((const uint8_t*)presented.data(), presented.size(), predig);
+
+  std::vector<std::string> discs;
+  { size_t p = compact.find('~') + 1, q;
+    while ((q = compact.find('~', p)) != std::string::npos) { if (q > p) discs.push_back(compact.substr(p, q - p)); p = q + 1; } }
+  std::vector<std::string> chosen(nattr);
+  for (size_t s = 0; s < nattr; ++s) {
+    std::string key = "\"" + claims[s] + "\"";
+    for (auto& d : discs) if (b64d(d).find(key) != std::string::npos) chosen[s] = d;
+    if (chosen[s].empty()) { printf("claim %s not found\n", claims[s].c_str()); return false; }
+  }
+
+  BitPluckerEncoder<f_128, 4> enc(Fs);
+  DenseFiller<f_128> f(W);
+  f.push_back(Fs.one());
+  for (int i = 0; i < 10; ++i) f.push_back((uint8_t)now[i], 8, Fs);
+  for (size_t i = 0; i < MAXVCT; ++i) f.push_back(i < vct_pat.size() ? (uint8_t)vct_pat[i] : 0, 8, Fs);
+  f.push_back((uint8_t)vct_pat.size(), 8, Fs);
+  for (size_t i = 0; i < MAXNONCE; ++i) f.push_back(i < nonce_pat.size() ? (uint8_t)nonce_pat[i] : 0, 8, Fs);
+  f.push_back((uint8_t)nonce_pat.size(), 8, Fs);
+  for (size_t i = 0; i < MAXAUD; ++i) f.push_back(i < aud_pat.size() ? (uint8_t)aud_pat[i] : 0, 8, Fs);
+  f.push_back((uint8_t)aud_pat.size(), 8, Fs);
+  push_rev_bits(f, kbdig, Fs);
+  for (size_t s = 0; s < nattr; ++s) {
+    std::string pat;
+    if (s < assertVals.size() && !assertVals[s].empty()) {
+      // ASSERT mode: pin the public pattern to a verifier-required value
+      // (`","name",<value>]`); the holder's actual disclosure must match it or
+      // the proof is unsatisfiable. Empty -> DISCLOSE the holder's own value.
+      pat = "\",\"" + claims[s] + "\"," + assertVals[s] + "]";
+    } else {
+      std::string dj = b64d(chosen[s]);
+      size_t salt_len = dj.find("\",\"") - 2;
+      pat = dj.substr(2 + salt_len);
+    }
+    for (size_t i = 0; i < MAXPAT; ++i) f.push_back(i < pat.size() ? (uint8_t)pat[i] : 0, 8, Fs);
+    f.push_back((uint8_t)pat.size(), 8, Fs);
+  }
+  feat_pub(f);  // SEAM: feature public witness (before macs)
+  for (int i = 0; i < 2 * nv; ++i) f.push_back(macs6[i]);
+  f.push_back(av);
+  if (pub_only) return true;
+
+  push_rev_bits(f, edig, Fs);
+  push_rev_bits(f, (const uint8_t*)cx_raw.data(), Fs);
+  push_rev_bits(f, (const uint8_t*)cy_raw.data(), Fs);
+  for (size_t i = 0; i < PRE; ++i) f.push_back(in_pre[i], 8, Fs);
+  for (size_t b = 0; b < kMaxSHA; ++b) fill_sha(f, enc, bw[b]);
+  f.push_back(numb, 8, Fs);
+  f.push_back(d1 + 1, LOGM, Fs); f.push_back(payload_b64.size(), LOGM, Fs);
+  // [adversarial prover] EVIL_EXP points exp_idx at a letters run (>= now) to
+  // try to bypass expiry. The `"exp":` anchor + digit check must REJECT this.
+  size_t exp_idx_w = (getenv("EVIL_EXP") ? payload.find("https") : exp_idx);
+  f.push_back(exp_idx_w, LOGM, Fs); f.push_back(vct_idx, LOGM, Fs);
+  f.push_back(xi, LOGM, Fs); f.push_back(yi, LOGM, Fs);
+  for (size_t i = 0; i < DECKB; ++i) f.push_back(kb_in[i], 8, Fs);
+  for (size_t b = 0; b < KBB; ++b) fill_sha(f, enc, kb_bw[b]);
+  f.push_back(kb_numb, 8, Fs);
+  f.push_back(kd1 + 1, LOGM, Fs); f.push_back(kb_pl_b64.size(), LOGM, Fs); f.push_back(sdh_pos, LOGM, Fs);
+  f.push_back(nonce_pos, LOGM, Fs); f.push_back(aud_pos, LOGM, Fs);
+  for (size_t i = 0; i < PRES; ++i) f.push_back(pres_in[i], 8, Fs);
+  for (size_t b = 0; b < PB; ++b) fill_sha(f, enc, pres_bw[b]);
+  f.push_back(pres_numb, 8, Fs);
+  push_rev_bits(f, predig, Fs);
+  for (size_t s = 0; s < nattr; ++s) f.push_back(presented.find(chosen[s]), LOGM, Fs);
+  for (size_t s = 0; s < nattr; ++s) {
+    const std::string& disc = chosen[s];
+    uint8_t dg[32]; ::SHA256((const uint8_t*)disc.data(), disc.size(), dg);
+    std::string entry = b64e(dg, 32);
+    size_t sd_idx = payload.find(entry);
+    if (sd_idx == std::string::npos) { printf("digest not in _sd\n"); return false; }
+    std::string dj = b64d(disc);
+    size_t salt_len = dj.find("\",\"") - 2;
+    uint8_t din[64 * MAXB]; FlatSHA256Witness::BlockWitness dbw[MAXB]; uint8_t dnumb = 0;
+    FlatSHA256Witness::transform_and_witness_message(disc.size(), (const uint8_t*)disc.data(), MAXB, dnumb, din, dbw);
+    for (size_t i = 0; i < 64 * MAXB; ++i) f.push_back(din[i], 8, Fs);
+    push_rev_bits(f, dg, Fs);
+    for (size_t b = 0; b < MAXB; ++b) fill_sha(f, enc, dbw[b]);
+    f.push_back(dnumb, 8, Fs);
+    f.push_back((uint8_t)disc.size(), 8, Fs);
+    f.push_back((uint8_t)(2 + salt_len), 8, Fs);
+    f.push_back(sd_idx, LOGM, Fs);
+  }
+  if (!feat_priv(f, enc, payload, discs)) return false;  // SEAM: feature private witness
+  for (int i = 0; i < 2 * nv; ++i) f.push_back(ap[i]);  // SHARED, av-independent key
+  return true;
+}
 }  // namespace hashc
 
 }  // namespace proofs
