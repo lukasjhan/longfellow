@@ -692,35 +692,37 @@ setup.
 
 \subsection{Mobile prover}\label{sec:mobile}
 We re-ran the full evaluation on a \textbf{Samsung Galaxy Z Flip5} (Snapdragon 8 Gen~2
-for Galaxy, 8\,GB RAM) under Termux---identical circuits and the same median methodology.
-Table~\ref{tab:mobile} reports it. \emph{Mobile proving is practical:} every configuration
-proves in under 2.1\,s and verifies in under 1\,s, comparable to the 2018 desktop and, on
-the smaller mdoc circuits, faster (a 2023 mobile SoC against a 2018 desktop part); the
+for Galaxy, 8\,GB RAM) under Termux with identical circuits. A compact foldable throttles
+under sustained load, and a fixed configuration order then inflates the later runs by
+$\approx$30\%; Table~\ref{tab:mobile} therefore reports the median of seven rounds with the
+order \emph{counterbalanced} (rotated each round), which removes that bias. \emph{Mobile
+proving is practical:} every configuration proves in under 1.5\,s and verifies in under
+0.7\,s---faster than the 2018 desktop across the board (1.3--1.5$\times$)---and the
 SD-JWT-VC-$\approx$2$\times$-mdoc ratio (\S\ref{sec:eval}) holds on-device. \emph{Memory is
 platform-independent:} peak resident set is 180--410\,MB, essentially identical to the
 desktop (180--199\,MB mdoc, 383--414\,MB SD-JWT VC)---it is the Ligero tableau, not a
-platform artifact---about 5\% of the phone's 8\,GB. \emph{Thermal note:} a compact foldable
-throttles under sustained back-to-back runs (which inflated SD-JWT proving by
-$\approx$30\%); since a wallet presentation is a one-shot burst, we report numbers with the
-device cooled between configurations, as deployment-representative.
+platform artifact---about 5\% of the phone's 8\,GB. Per-feature differences on mobile stay
+within thermal variance; we isolate feature costs on the desktop (Table~\ref{tab:eval}), and
+the base row (three disclosed attributes vs.\ one) is not feature-comparable.
 
 \begin{table}[t]\centering\small
-\caption{Mobile prover: Samsung Galaxy Z Flip5 (Snapdragon 8 Gen~2, 8\,GB), median of 3,
-cooled between configurations. Peak RSS is the proof system's working set and matches the
-desktop (Table~\ref{tab:eval}'s hardware) within noise.}
+\caption{Mobile prover: Samsung Galaxy Z Flip5 (Snapdragon 8 Gen~2, 8\,GB), median of 7
+with configuration order counterbalanced (rotated each round) to remove thermal-ordering
+bias. Peak RSS is the proof system's working set and matches the desktop
+(Table~\ref{tab:eval}'s hardware) within noise.}
 \label{tab:mobile}
 \begin{tabular}{@{}llrrrr@{}}
 \toprule
 Format & Feature & Prove & Verify & Proof & Peak RSS \\
        &         & (ms)  & (ms)   & (KB)  & (MB) \\
 \midrule
-SD-JWT VC & base (SD + sig)        & 1577 & 713 & 391 & 372 \\
-SD-JWT VC & + nullifier            & 1869 & 882 & 394 & 395 \\
-SD-JWT VC & + \textbf{blind} null. & 2006 & 947 & 395 & 403 \\
-SD-JWT VC & + revocation           & 2061 & 983 & 412 & 397 \\
-ISO mdoc  & + nullifier            & \phantom{0}712 & 339 & 344 & 180 \\
-ISO mdoc  & + \textbf{blind} null. & \phantom{0}759 & 389 & 346 & 187 \\
-ISO mdoc  & + revocation           & \phantom{0}944 & 461 & 360 & 182 \\
+SD-JWT VC & base (SD + sig)        & 1299 & 593 & 392 & 372 \\
+SD-JWT VC & + nullifier            & 1392 & 660 & 393 & 395 \\
+SD-JWT VC & + \textbf{blind} null. & 1414 & 663 & 396 & 403 \\
+SD-JWT VC & + revocation           & 1442 & 692 & 415 & 397 \\
+ISO mdoc  & + nullifier            & \phantom{0}694 & 331 & 344 & 180 \\
+ISO mdoc  & + \textbf{blind} null. & \phantom{0}731 & 361 & 347 & 187 \\
+ISO mdoc  & + revocation           & \phantom{0}757 & 364 & 361 & 182 \\
 \bottomrule
 \end{tabular}
 \end{table}
