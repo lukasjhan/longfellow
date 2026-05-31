@@ -64,7 +64,7 @@ zero-knowledge can already prove possession of an \emph{unmodified}, issuer-sign
 ECDSA credential with no change to issuers or devices---but \emph{longfellow}, which
 introduced this, targets only ISO mdoc and offers no defense against linkable repeat
 use. We extend this line in three ways: (i)~the \textbf{first zero-knowledge circuits
-for the IETF SD-JWT VC text format} (JSON/JWS/base64url); (ii)~an
+for the unmodified IETF SD-JWT VC text format} (JSON/JWS/base64url); (ii)~an
 \textbf{issuer-unlinkable per-context blind nullifier}---to our knowledge the first
 bound to an issuer-signed standard credential that \emph{never de-anonymizes} its
 holder and is \emph{publicly verifiable}, unlike PLUME/Semaphore nullifiers, Privacy
@@ -155,8 +155,8 @@ beyond the base proof system.
 \begin{itemize}
 \item \textbf{(C1)} The first transparent, no-trusted-setup zero-knowledge
 construction over the \textbf{unmodified IETF SD-JWT VC} format---new circuits for its
-JSON/JWS/base64url/salted-hash structure---generalized to ISO mdoc through a shared
-seam (\S\ref{sec:construction}).
+JSON/JWS/base64url/salted-hash structure, sharing a format-agnostic seam with ISO
+mdoc (\S\ref{sec:construction}).
 \item \textbf{(C2)} An \textbf{issuer-unlinkable per-context blind nullifier} bound to
 a standard credential, with a security definition and proof of issuer-untraceability
 (\S\ref{sec:security}), and a precise separation from PLUME, Semaphore, Privacy
