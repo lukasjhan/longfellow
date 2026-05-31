@@ -212,7 +212,12 @@ can demonstrate authority over that scope; a $\mathit{ctx}$ presented by an unau
 party is treated as an attempt to link and is ignored. Under this discipline a repeat
 presentation to the \emph{same verifier under the same scope} deliberately yields the
 same $N$---the duplication signal the application relies on (one vote per election, one
-account per service)---while no other party can induce that collision.
+account per service)---while no other party can induce that collision. This
+authorization is not new infrastructure: it is the verifier (relying-party)
+authentication that OpenID4VP and the EUDI ARF~\cite{eudi-arf} already require---e.g., a
+relying-party registration certificate scoping what a verifier may request---so the
+wallet binds $\mathit{ctx}$ to that authenticated, registered identity and rejects a
+$\mathit{ctx}$ asserted by any other origin.
 
 \subsection{Trust and adversary model}
 \begin{itemize}
@@ -324,7 +329,8 @@ device key $\mathit{dpk}$ is checked in-circuit to equal the issuer-attested
 \texttt{cnf} key, and the holder's signature over $e_2$ is verified (but, like
 $\mathit{dpk}$ itself, never revealed): a valid presentation therefore \emph{requires
 the holder's secure-element key} (\S\ref{sec:relation}) while leaking no linkable
-handle.
+handle. Both ECDSA verifications---the issuer's and the holder's---are the signature
+half measured in Table~\ref{tab:eval}.
 
 \subsection{Issuer-unlinkable blind nullifier}\label{sec:blind}
 This is our central construction. The goal is a per-context tag $N$ that is unique per
@@ -623,7 +629,9 @@ PID credential, disclosing one attribute (\texttt{age\_over\_18}) for the featur
 and three for the base row.
 
 \begin{table}[t]\centering\small
-\caption{Per-feature cost on SD-JWT VC and ISO mdoc (median of 7 runs).}
+\caption{Per-feature cost on SD-JWT VC and ISO mdoc (median of 7 runs). The signature
+half verifies two ECDSA in every row (issuer over $e$, holder KB-JWT over $e_2$);
+revocation adds a third, the CRA span.}
 \label{tab:eval}
 \begin{tabular}{@{}llrrrr@{}}
 \toprule
@@ -655,9 +663,11 @@ $\approx$190k inputs); SD-JWT VC's base64url/JSON parsing roughly doubles the SH
 work relative to mdoc's CBOR---the first concrete quantification of this cost. (We omit
 a standalone mdoc base row: the nullifier block adds under 6\%, so an mdoc base lies
 within a few percent of the +nullifier figure.)
-\emph{Revocation} adds constant, list-independent overhead: the signature circuit grows
-from 3{,}739 to 5{,}288 inputs (the in-circuit CRA ECDSA) and the bundle by
-$\approx$15\,KB, while prove/verify move within noise. \emph{Proof size} is
+\emph{Revocation} adds constant, list-independent overhead. Every row's signature
+circuit already verifies \emph{two} ECDSA---the issuer's over $e$ and the holder's
+KB-JWT over $e_2$ (\S\ref{sec:frontend})---so the 3{,}739-input base already includes
+the device signature; revocation adds a \emph{third}, the CRA span, growing it to
+5{,}288 inputs and the bundle by $\approx$15\,KB, while prove/verify move within noise. \emph{Proof size} is
 $\approx$390\,KB (SD-JWT VC) / $\approx$350\,KB (mdoc), split into roughly equal
 signature and hash halves---larger than pairing-based SNARKs, but requiring no trusted
 setup.
@@ -817,7 +827,9 @@ nullifier.
 \paragraph{Proof size.} Transparent (hash-based) proofs are larger
 ($\approx$350--390\,KB) than pairing-based SNARKs; this is the price of removing the
 trusted setup. At this size a proof does not fit a QR code; presentment assumes a
-return channel (NFC, BLE, or an HTTPS callback), as mDL already uses. Reducing proof
+return channel (NFC, BLE, or an HTTPS callback), as mDL already uses---though an HTTPS callback exposes
+IP/TLS metadata, a linkage vector outside our cryptographic model that proximity
+channels (NFC/BLE) avoid. Reducing proof
 size (e.g., via recursion or a succinct wrapper) is future work.
 \paragraph{Honest issuance.} Issuer-untraceability treats the issuer as adversarial
 \emph{after} issuance but assumes it issues a well-formed signature; a malicious issuer
