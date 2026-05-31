@@ -8,6 +8,8 @@ Target venue: PETS (1순위) / WPES / Financial Crypto.
 - `paper.tex` — full single-file skeleton (all sections, merged from the markdown drafts).
 - `refs.bib` — bibliography (some fields marked `[VERIFY]` pending camera-ready).
 - `Makefile` — `make` to build (needs a TeX distribution).
+- `make-twocol.sh` — generate a throwaway two-column preview (see "Two-column layout").
+- `DESIGN-NOTES.md` — deliberate design decisions + reviewer rationale (notation, device binding, uniqueness scope, revocation attribution).
 
 ## Build
 This machine has **no TeX toolchain**. Two options:
