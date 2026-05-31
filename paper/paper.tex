@@ -384,7 +384,9 @@ the issuer's view (Theorem~\ref{thm:untrace}). Because both the commitment and t
 nullifier are SHA-256, the blind nullifier adds \emph{no} assumption beyond
 longfellow's. This distinguishes it from PLUME/Semaphore (no issuer-signed credential),
 ARC (privately verifiable), and e-cash serial numbers (de-anonymize on reuse);
-see~\S\ref{sec:related}.
+see~\S\ref{sec:related}. Untraceability requires the holder to sample $s$ at full
+entropy: a low-entropy seed would let an issuer who knows the holder brute-force $N$,
+but---like a malformed $C$---this harms only that holder.
 
 \subsection{Signed-range non-membership revocation}\label{sec:revoc}
 We adopt longfellow's signed-range mechanism and extend it to SD-JWT VC; we claim the
@@ -540,10 +542,11 @@ $\mathit{cred}_b$; $\mathcal{A}$ outputs $b'$.
 Advantage $\le\mathsf{negl}(\lambda)$ assuming $\mathsf{NIZK}$ is ZK, $\mathsf{COM}$ is
 hiding, and $H_{\mathsf{nul}}$ is a RO/PRF.
 \end{theorem}
-\begin{proof}[Proof sketch] Hybrids: replace the proof by $\mathsf{Sim}(x)$ (ZK); the
-only $b$-dependent part is $N_b$ (since $D,\phi$ are equal by the restriction); replace
-$N_b$ by a uniform value (fresh $\mathit{ctx}^*$, high-entropy $s_b$), after which the
-view is independent of $b$. \end{proof}
+\begin{proof}[Proof sketch] Hybrids: replace the proof by $\mathsf{Sim}(x)$ (ZK), which
+hides every witness---including the now credential-specific $\mathit{dpk}$, which is not
+in $x$; the only $b$-dependent part of $x$ is $N_b$ (since $D,\phi$ are equal by the
+restriction); replace $N_b$ by a uniform value (fresh $\mathit{ctx}^*$, high-entropy
+$s_b$), after which the view is independent of $b$. \end{proof}
 
 \begin{theorem}[Nullifier determinism \& uniqueness]\label{thm:nullunique}
 $N=H_{\mathsf{nul}}(s,\mathit{ctx})$ is deterministic in $(s,\mathit{ctx})$, so two
@@ -665,9 +668,12 @@ a standalone mdoc base row: the nullifier block adds under 6\%, so an mdoc base 
 within a few percent of the +nullifier figure.)
 \emph{Revocation} adds constant, list-independent overhead. Every row's signature
 circuit already verifies \emph{two} ECDSA---the issuer's over $e$ and the holder's
-KB-JWT over $e_2$ (\S\ref{sec:frontend})---so the 3{,}739-input base already includes
-the device signature; revocation adds a \emph{third}, the CRA span, growing it to
-5{,}288 inputs and the bundle by $\approx$15\,KB, while prove/verify move within noise. \emph{Proof size} is
+KB-JWT over $e_2$ (\S\ref{sec:frontend}). Each in-circuit P-256 ECDSA costs
+$\approx$1{,}549 signature-circuit inputs (the increment the CRA span adds), so the
+3{,}739-input base is two such verifications plus $\approx$640 fixed overhead; a single
+ECDSA would leave an implausible $\approx$2{,}190 of overhead. Revocation adds a
+\emph{third} ECDSA, growing the circuit to 5{,}288 inputs and the bundle by
+$\approx$15\,KB, while prove/verify move within noise. \emph{Proof size} is
 $\approx$390\,KB (SD-JWT VC) / $\approx$350\,KB (mdoc), split into roughly equal
 signature and hash halves---larger than pairing-based SNARKs, but requiring no trusted
 setup.
@@ -862,22 +868,27 @@ follow from the body sketches.
 \begin{enumerate}
 \item The challenger runs issuer key generation $(\mathit{isk},\mathit{ipk})$, gives $\mathit{ipk}$ to $\mathcal{A}$, and sets $Q\gets\emptyset$.
 \item $\mathcal{A}$ may query $\mathsf{Issue}(\cdot)$: the challenger signs the requested credential body, returns the credential, and adds it to $Q$.
-\item $\mathcal{A}$ outputs $(x^*,\pi^*)$ and wins iff $\mathsf{Ver}(x^*,\pi^*)=1$ and no $\mathit{cred}\in Q$ is both validly signed and consistent with $x^*$ (disclosed values, predicate, non-revocation).
+\item $\mathcal{A}$ outputs $(x^*,\pi^*)$ and wins iff $\mathsf{Ver}(x^*,\pi^*)=1$ and no $\mathit{cred}\in Q$ is both validly signed and consistent with $x^*$ (disclosed values, predicate, device binding, non-revocation).
 \end{enumerate}
 
 \begin{proof}[Full proof of Theorem~\ref{thm:sound}]
 Let $\mathcal{A}$ win $\mathsf{Snd}$ with probability $\epsilon$. By knowledge-soundness
 of $\mathsf{NIZK}$ there is an extractor $\mathcal{E}$ that, from $\mathcal{A}$'s
 accepting $(x^*,\pi^*)$, outputs a witness
-$w^*=(\mathit{cred}^*,\sigma^*,s^*,r^*,A^*,\pi_{\mathrm{rev}}^*)$ with
+$w^*=(\mathit{cred}^*,\sigma^*,\sigma_{\mathrm{kb}}^*,\mathit{dpk}^*,\allowbreak
+s^*,r^*,A^*,\pi_{\mathrm{rev}}^*)$ with
 $\mathcal{R}(x^*,w^*)=1$ up to knowledge error $\kappa$. Clause~1 of $\mathcal{R}$ gives
-$\mathsf{SigVer}(\mathit{ipk},\mathit{cred}^*,\sigma^*)=1$. Two cases.
+$\mathsf{SigVer}(\mathit{ipk},\mathit{cred}^*,\sigma^*)=1$, and clause~2 a valid holder
+signature $\sigma_{\mathrm{kb}}^*$ under $\mathit{dpk}^*$, the holder-binding key
+attested in $\mathit{cred}^*$. Two cases.
 (i)~$\mathit{cred}^*\notin Q$: then $(\mathit{cred}^*,\sigma^*)$ is a valid forgery; an
 EUF-CMA adversary that relays $\mathsf{Issue}$ queries to its signing oracle and outputs
 $(\mathit{cred}^*,\sigma^*)$ wins with probability $\epsilon-\kappa$.
 (ii)~$\mathit{cred}^*\in Q$: then $\mathit{cred}^*$ is validly signed, and the remaining
 clauses bind the disclosed values, the predicate output, the committed nullifier seed (via
-binding of $\mathsf{COM}$), and the non-revocation fact to $\mathit{cred}^*$; hence
+binding of $\mathsf{COM}$), the device key (clause~2: $\mathit{dpk}^*$ equals the attested
+\texttt{cnf}/\texttt{deviceKey} and carries a valid $\sigma_{\mathrm{kb}}^*$), and the
+non-revocation fact to $\mathit{cred}^*$; hence
 $\mathit{cred}^*$ is consistent with $x^*$, contradicting the win condition unless
 $\mathsf{COM}$-binding is broken (probability $\le\beta$). Therefore
 $\epsilon\le\mathsf{Adv}^{\mathrm{euf}}+\beta+\kappa$, which is negligible.
