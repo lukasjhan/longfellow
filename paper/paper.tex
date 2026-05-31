@@ -320,7 +320,8 @@ credential within a context, unlinkable across contexts, and untraceable even by
 issuer.
 
 \paragraph{Issuance (blind).} The \emph{holder} samples a 256-bit seed $s$ and a
-256-bit blind $r$ and forms a hash commitment $C=\mathsf{SHA256}(s\|r)$. The issuer
+256-bit blind $r$ and forms a hash commitment $C=\mathsf{SHA256}(s\|r)$ (written
+abstractly as $\mathsf{Commit}(s;r)$ in \S\ref{sec:security}). The issuer
 signs $C$ as an ordinary disclosure (\texttt{pseudonym\_commitment}) included in
 \texttt{\_sd}; it commits to $C$---the holder cannot later swap it---\emph{yet never
 observes $s$ or $r$}.
@@ -394,7 +395,7 @@ Parsing front-end         & JWS, base64url, JSON          & CBOR, MSO \\
 \subsection{The full presentation}
 A complete presentation bundles the signature- and hash-circuit proofs (and, with
 revocation, the CRA span proof) with the public statement
-$x=(\mathit{ipk},\mathit{ctx\_hash},N,D,\phi,\mathit{rinfo})$ of \S\ref{sec:relation},
+$x=(\mathit{ipk},\mathit{ctx},N,D,\phi,\mathit{rinfo})$ of \S\ref{sec:relation},
 establishing all clauses of the relation $\mathcal{R}$ with no trusted setup.
 
 % =====================================================================
@@ -423,7 +424,9 @@ EUF-CMA (ECDSA in GGM+ROM).
 256-bit blind (\S\ref{sec:blind}): hiding holds in the ROM, binding by collision
 resistance---so it adds no assumption beyond longfellow's.
 \item \textbf{Nullifier hash} $H_{\mathsf{nul}}$: $N=H_{\mathsf{nul}}(s,\mathit{ctx})$,
-a random oracle / PRF keyed by $s$.
+\emph{instantiated as} $\mathsf{SHA256}(s\|\mathit{ctx\_hash})$ with
+$\mathit{ctx\_hash}=\mathsf{SHA256}(\mathit{ctx})$ (\S\ref{sec:blind}), modeled as a
+random oracle / PRF keyed by $s$.
 \item \textbf{Transparent argument} $\mathsf{NIZK}$ (Ligero~+~sumcheck, Fiat--Shamir
 in the ROM), knowledge-sound and zero-knowledge, no setup.
 \item \textbf{CRA signature} for revocation gaps, EUF-CMA.
