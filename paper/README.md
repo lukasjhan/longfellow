@@ -45,12 +45,13 @@ REPS=7 node tools/eval-bench.mjs      # regenerates fixtures, writes fixtures/ev
 Measured on AMD Ryzen 7 2700X (8C/16T). Raw numbers: `playground/fixtures/eval-results.csv`.
 
 ## Open items before submission
-- [ ] **Idemix / U-Prove** — cite primary sources (CL 2001/2002; Brands 2000 / U-Prove spec); not independently verified in the prior-art survey.
-- [ ] §2 Background, §6 Implementation, §9 Discussion, §10 Conclusion — fill the stubs (marked `\TODO`).
-- [ ] **Figure 1** — split-circuit seam (sig $\mathbb{F}_p$ ⊕ hash $\mathrm{GF}(2^{128})$, MAC link) + 3 feature blocks.
-- [ ] Deployment citations: EU 2024/1183, AAMVA mDL, RFC 9901 number/section.
+- [x] **Idemix / U-Prove** — facts confirmed (CL/Strong-RSA/multi-show; Brands/DL/one-show); primary sources cited.
+- [x] §2 Background, §6 Implementation, §9 Discussion, §10 Conclusion — filled.
+- [x] **Figure 1** — split-circuit seam (sig $\mathbb{F}_p$ ⊕ hash $\mathrm{GF}(2^{128})$, MAC link) + 3 feature blocks (TikZ).
+- [ ] Deployment citations: verify EU 2024/1183, AAMVA mDL, RFC 9901 number/section against primary docs.
 - [ ] (optional) mdoc-base row, formal gate counts, a mobile + server datapoint, batch-issuance issuer-side cost model (Table 3).
 - [ ] Tighten security games to pseudocode; full proofs in appendix.
+- [ ] Remaining `\TODO` in §7.4 (issuer-side cost model / Table 3).
 
 ## Honesty guardrails (do not drop)
 - The signed-range revocation **mechanism** is longfellow's (`MdocRevocationSpan`); our

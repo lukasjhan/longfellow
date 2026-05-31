@@ -19,6 +19,8 @@
 \usepackage{graphicx}
 \usepackage{pifont}      % \ding for check/cross marks
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc}
 \usepackage[hidelinks]{hyperref}
 
 % comparison-table marks
@@ -161,7 +163,8 @@ base64url/JSON parsing roughly doubles the hash-circuit work relative to mdoc's 
 
 % =====================================================================
 \section{Background}\label{sec:background}
-\TODO{expand from outline \S2. Brief stubs below.}
+We recall the two credential formats, the linkability notion we target, and the
+transparent argument we build on.
 
 \paragraph{SD-JWT VC.} A JWS over a payload carrying \texttt{\_sd}, an array of
 disclosure digests, and a holder-binding key in \texttt{cnf}; each disclosure is
@@ -255,7 +258,30 @@ revocation, $e_{\mathrm{span}}$. The prover commits its half $a_p$ of a
 $\mathrm{GF}(2^{128})$ MAC key and the shared values \emph{before} the Fiat--Shamir
 challenge reveals $a_v$; the resulting MACs are public inputs to both circuits. By
 Schwartz--Zippel, a prover cannot feed two different values to the two circuits except
-with negligible probability. This seam is shared by all feature configurations.
+with negligible probability. This seam is shared by all feature configurations
+(Figure~\ref{fig:seam}).
+
+\begin{figure}[t]\centering
+\begin{tikzpicture}[
+  font=\small, >=Latex,
+  box/.style={draw, rounded corners, align=center, minimum height=1.15cm, inner sep=4pt},
+  feat/.style={draw, dashed, rounded corners, align=center, font=\footnotesize, inner sep=3pt}]
+  \node[box, fill=blue!5] (sig) {Signature circuit $(\mathbb{F}_p)$\\ ECDSA over $e$\\ {\footnotesize(+ CRA span sig)}};
+  \node[box, fill=orange!10, right=2.7cm of sig] (hash) {Hash circuit $(\mathrm{GF}(2^{128}))$\\ SHA-256 of the\\ SD-JWT\,/\,mdoc structure};
+  \draw[<->, thick] (sig) -- node[above, font=\footnotesize]{MAC seam}
+                            node[below, font=\footnotesize]{$e,\ \mathit{dpk},\ e_{\mathrm{span}}$} (hash);
+  \node[feat, below=0.9cm of hash] (null) {blind nullifier\\ $N{=}\mathsf{SHA256}(s\|\mathit{ctx})$};
+  \node[feat, left=0.5cm of null] (pred) {predicate $\phi(A)$};
+  \node[feat, right=0.5cm of null] (rev) {revocation\\ $\ell{<}\mathit{rev\_id}{<}r$};
+  \draw[->] (hash) -- (pred.north); \draw[->] (hash) -- (null); \draw[->] (hash) -- (rev.north);
+\end{tikzpicture}
+\caption{Split-circuit architecture. A signature circuit $(\mathbb{F}_p)$ and a hash
+circuit $(\mathrm{GF}(2^{128}))$ are linked by a MAC over the shared values
+$e,\mathit{dpk},e_{\mathrm{span}}$; the format-agnostic feature blocks (predicate,
+issuer-unlinkable blind nullifier, signed-range revocation) attach to the hash circuit
+and run unchanged for SD-JWT VC and mdoc.}
+\label{fig:seam}
+\end{figure}
 
 \subsection{SD-JWT VC front-end}\label{sec:frontend}
 The signature circuit verifies the issuer's ES256 signature over the payload digest
@@ -331,9 +357,17 @@ establishing all clauses of the relation $\mathcal{R}$ with no trusted setup.
 
 % =====================================================================
 \section{Implementation}\label{sec:impl}
-\TODO{expand. Built on longfellow-zk (C++); a shared header is the single source of
-truth for the seam, MAC machinery, and circuit cache, with per-format front-ends and
-per-feature blocks. Circuits are compiled once and cached (zstd).}
+We implement the system in C++ on top of longfellow-zk. A single shared header is the
+source of truth for the split-circuit seam (\S\ref{sec:seam})---the MAC machinery, the
+public-input layout, and the compiled-circuit cache---while a thin per-format front-end
+parses SD-JWT VC or mdoc and each feature is an additive circuit block. The four
+configurations per format (base, nullifier, blind nullifier, revocation) thus share one
+codebase, and the SD-JWT VC and mdoc variants differ only in their front-end. ECDSA
+verification reuses longfellow's P-256 circuit and SHA-256 its flat-witness gadget, so
+the blind nullifier's commitment and tag reduce to two extra SHA-256 blocks
+(\S\ref{sec:blind}). Circuits are compiled once and cached (zstd-compressed) so that
+proving and verification do not pay the build cost. An evaluation harness regenerates
+the issuer/holder fixtures and records the numbers reported in \S\ref{sec:eval}.
 
 % =====================================================================
 \section{Security Analysis}\label{sec:security}
@@ -649,13 +683,38 @@ Compact e-cash~\cite{chl2005} & CL / Strong-RSA & T & own coin & --- & --- & \cm
 
 % =====================================================================
 \section{Discussion and Limitations}\label{sec:discussion}
-\TODO{from \S5.4 + \S7.5: static-possession scope (no stateful reputation), ROM
-reliance, proof size vs.\ SNARKs, single-machine measurement, moving-target upstream.}
+\paragraph{Scope.} We prove possession of a \emph{static} credential. Stateful
+anonymous-credential features---reputation, asynchronous bans, revocable
+pseudonyms---as in zk-promises are out of scope by design; our target is the
+single-shot presentation that wallets actually perform.
+\paragraph{Assumptions.} Soundness reduces to EUF-CMA of standard ECDSA, binding of the
+SHA-256 commitment, and knowledge-soundness of a hash-based argument in the
+random-oracle model; unlike Groth16-based systems there is no setup-integrity
+assumption. The random-oracle heuristic underlies both Fiat--Shamir and the blind
+nullifier.
+\paragraph{Proof size.} Transparent (hash-based) proofs are larger
+($\approx$350--390\,KB) than pairing-based SNARKs; this is the price of removing the
+trusted setup. Reducing proof size (e.g., via recursion or a succinct wrapper) is
+future work.
+\paragraph{Honest issuance.} Issuer-untraceability treats the issuer as adversarial
+\emph{after} issuance but assumes it issues a well-formed signature; a malicious issuer
+can always refuse service or mark a credential---an orthogonal problem shared by all
+surveyed schemes.
+\paragraph{Measurement and moving target.} Numbers are from a single x86 desktop;
+mobile proving will differ, and a camera-ready should add device datapoints. longfellow
+evolves upstream (a plain-JWT circuit was added recently); our SD-JWT VC results should
+be re-confirmed against the version cited at submission.
 
 \section{Conclusion}\label{sec:conclusion}
-\TODO{1 paragraph: transparent ZK turns unmodified SD-JWT VC and mdoc into anonymous
-credentials with an issuer-untraceable nullifier, at practical cost and no trusted
-setup.}
+Selective-disclosure credentials are shipping without the unlinkability their own
+governing frameworks require. We showed that transparent, no-trusted-setup
+zero-knowledge can turn \emph{unmodified} SD-JWT VC and ISO mdoc credentials into
+anonymous credentials---unifying selective disclosure, predicates, an
+issuer-unlinkable blind nullifier, and signed-range revocation in one framework over
+both formats---at practical cost (sub-2\,s proving, sub-second verification) and with no
+change to issuers or devices. The blind nullifier, which even the issuer cannot trace
+yet which costs under 5\% over a plain nullifier, closes the gap that batch issuance and
+prior zero-knowledge systems leave open.
 
 \bibliographystyle{plain}
 \bibliography{refs}
