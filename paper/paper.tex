@@ -690,6 +690,41 @@ $\approx$390\,KB (SD-JWT VC) / $\approx$350\,KB (mdoc), split into roughly equal
 signature and hash halves---larger than pairing-based SNARKs, but requiring no trusted
 setup.
 
+\subsection{Mobile prover}\label{sec:mobile}
+We re-ran the full evaluation on a \textbf{Samsung Galaxy Z Flip5} (Snapdragon 8 Gen~2
+for Galaxy, 8\,GB RAM) under Termux---identical circuits and the same median methodology.
+Table~\ref{tab:mobile} reports it. \emph{Mobile proving is practical:} every configuration
+proves in under 2.1\,s and verifies in under 1\,s, comparable to the 2018 desktop and, on
+the smaller mdoc circuits, faster (a 2023 mobile SoC against a 2018 desktop part); the
+SD-JWT-VC-$\approx$2$\times$-mdoc ratio (\S\ref{sec:eval}) holds on-device. \emph{Memory is
+platform-independent:} peak resident set is 180--410\,MB, essentially identical to the
+desktop (180--199\,MB mdoc, 383--414\,MB SD-JWT VC)---it is the Ligero tableau, not a
+platform artifact---about 5\% of the phone's 8\,GB. \emph{Thermal note:} a compact foldable
+throttles under sustained back-to-back runs (which inflated SD-JWT proving by
+$\approx$30\%); since a wallet presentation is a one-shot burst, we report numbers with the
+device cooled between configurations, as deployment-representative.
+
+\begin{table}[t]\centering\small
+\caption{Mobile prover: Samsung Galaxy Z Flip5 (Snapdragon 8 Gen~2, 8\,GB), median of 3,
+cooled between configurations. Peak RSS is the proof system's working set and matches the
+desktop (Table~\ref{tab:eval}'s hardware) within noise.}
+\label{tab:mobile}
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Format & Feature & Prove & Verify & Proof & Peak RSS \\
+       &         & (ms)  & (ms)   & (KB)  & (MB) \\
+\midrule
+SD-JWT VC & base (SD + sig)        & 1577 & 713 & 391 & 372 \\
+SD-JWT VC & + nullifier            & 1869 & 882 & 394 & 395 \\
+SD-JWT VC & + \textbf{blind} null. & 2006 & 947 & 395 & 403 \\
+SD-JWT VC & + revocation           & 2061 & 983 & 412 & 397 \\
+ISO mdoc  & + nullifier            & \phantom{0}712 & 339 & 344 & 180 \\
+ISO mdoc  & + \textbf{blind} null. & \phantom{0}759 & 389 & 346 & 187 \\
+ISO mdoc  & + revocation           & \phantom{0}944 & 461 & 360 & 182 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Comparison to batch issuance}
 Batch issuance moves all cost to issuance and storage: to support $k$
 verifier-unlinkable presentations the issuer mints and signs $k$ single-use
@@ -728,9 +763,8 @@ per-presentation proof, but issuance and storage are $O(1)$, presentations are
 unbounded, and unlinkability extends to the issuer.
 
 \subsection{Threats to validity}
-Measurements are from a single x86 desktop; mobile proving (the deployment target)
-will differ, and a camera-ready should add at least one mobile and one server-class
-datapoint. Proving time scales with the number and size of disclosed attributes; we
+Measurements span an x86 desktop and a Snapdragon~8~Gen~2 phone (\S\ref{sec:mobile}); a
+server-class datapoint remains future work. Proving time scales with the number and size of disclosed attributes; we
 fix a representative PID disclosure. Reported sizes are circuit input counts (a proxy
 for circuit size), not raw gate counts. Numbers reflect the implementation as of the
 submission date.
@@ -860,8 +894,9 @@ size (e.g., via recursion or a succinct wrapper) is future work.
 \emph{after} issuance but assumes it issues a well-formed signature; a malicious issuer
 can always refuse service or mark a credential---an orthogonal problem shared by all
 surveyed schemes.
-\paragraph{Measurement and moving target.} Numbers are from a single x86 desktop;
-mobile proving will differ, and a camera-ready should add device datapoints. longfellow
+\paragraph{Measurement and moving target.} Numbers are from an x86 desktop and a
+Snapdragon~8~Gen~2 phone (\S\ref{sec:mobile}); a server-class datapoint remains future
+work. longfellow
 evolves upstream (a plain-JWT circuit was added recently); our SD-JWT VC results should
 be re-confirmed against the version cited at submission.
 

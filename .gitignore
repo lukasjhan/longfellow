@@ -63,3 +63,7 @@ references/*.pdf
 .claude/
 .DS_Store
 *.swp
+
+# --- mobile (Termux) bench artifacts (regenerable) ---
+/longfellow-android.tgz
+/build-android/
