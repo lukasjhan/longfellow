@@ -329,7 +329,10 @@ decoding and membership of its digest in \texttt{\_sd}, and (c)~the key-binding 
 payload (its digest $e_2$, and the verifier's \texttt{nonce}/\texttt{aud}). Each
 requested claim is handled in one of two modes: \emph{disclose}---the value is matched
 against a public pattern and revealed---or \emph{assert}---the value stays hidden and
-only a \emph{predicate} over it (range, equality, set membership) is enforced. The
+pinned to a verifier-chosen value (an \emph{equality} predicate). A shared bytewise
+comparator enforces the \emph{range} checks the format already needs---\texttt{now}$\le$\texttt{exp}
+on expiry and $\ell<\mathit{rev\_id}<r$ on revocation; exposing it as a general range or
+set-membership predicate over arbitrary attributes is future work. The
 device key $\mathit{dpk}$ is checked in-circuit to equal the issuer-attested
 \texttt{cnf} key, and the holder's signature over $e_2$ is verified (but, like
 $\mathit{dpk}$ itself, never revealed): a valid presentation therefore \emph{requires
@@ -634,7 +637,11 @@ trust, and no issuer or network interaction at presentation time. Each presentat
 comprises two MAC-linked proofs (signature over $\mathbb{F}_p$, hash over
 $\mathrm{GF}(2^{128})$); ``proof'' is the full transmitted bundle. We use a EUDI-style
 PID credential, disclosing one attribute (\texttt{age\_over\_18}) for the feature rows
-and three for the base row.
+and three for the base row. The feature rows thus exercise selective disclosure rather
+than an attribute predicate; the in-circuit cost of a date-range predicate is nonetheless
+represented, since every row's base already enforces \texttt{now}$\le$\texttt{exp} over the
+10-digit expiry with the same comparator an \texttt{age\_over\_N} proof
+(\texttt{birth\_date}$\le$\texttt{cutoff}) would reuse.
 
 \begin{table}[t]\centering\small
 \caption{Per-feature cost on SD-JWT VC and ISO mdoc (median of 7 runs). The signature
@@ -816,12 +823,14 @@ PLUME~\cite{plume2022} & EC-VRF & N & self-held secp256k1 & --- & --- & \cmark &
 Semaphore~\cite{semaphore} & Groth16 & T & own Merkle group & --- & --- & \cmark & \xmark admin knows leaf & --- & \cmark\\
 ARC~\cite{arc-draft} & KVAC (MACGGM) & N & own MACGGM & \xmark & \xmark & \cmark/\pmark & \pmark per-ctx, weak & --- & \xmark priv\\
 Compact e-cash~\cite{chl2005} & CL / Strong-RSA & T & own coin & --- & --- & \cmark & \xmark de-anon on dbl-spend & --- & \cmark\\
-\textbf{This work} & \textbf{Ligero+sumcheck} & \textbf{N} & \textbf{SD-JWT VC + mdoc} & \cmark & \cmark & \textbf{\cmark/\cmark} & \textbf{\cmark issuer-untraceable} & signed-range$^{a}$ & \cmark\\
+\textbf{This work} & \textbf{Ligero+sumcheck} & \textbf{N} & \textbf{SD-JWT VC + mdoc} & \cmark & \pmark$^{c}$ & \textbf{\cmark/\cmark} & \textbf{\cmark issuer-untraceable} & signed-range$^{a}$ & \cmark\\
 \bottomrule
 \end{tabular}}
 \\[2pt]
 {\footnotesize $^{a}$Revocation mechanism due to longfellow; we extend it to SD-JWT VC.
-\quad $^{b}$BBS\# NIZK needs no setup but requires issuer interaction at presentation.}
+\quad $^{b}$BBS\# NIZK needs no setup but requires issuer interaction at presentation.
+\quad $^{c}$Predicates: equality assertion plus the format's built-in date ranges
+(expiry, revocation); general range/set-membership over arbitrary attributes is future work.}
 \end{table*}
 
 % =====================================================================
