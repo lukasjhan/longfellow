@@ -1,5 +1,8 @@
 # LaTeX build artifacts
 paper.pdf
+# generated two-column preview (regenerate with ./make-twocol.sh)
+paper-twocol.tex
+paper-twocol.pdf
 *.aux
 *.bbl
 *.blg

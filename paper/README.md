@@ -20,6 +20,28 @@ This machine has **no TeX toolchain**. Two options:
 The preamble is portable (`article` + amsmath/amsthm/booktabs/pifont/hyperref).
 To target a venue, swap `\documentclass` for the PoPETs/ACM class.
 
+## Two-column layout
+
+This draft is single-column `article` for readability. Conference venues are
+two-column; switch only when you commit to a venue.
+
+**Quick preview (generic, _not_ submission-accurate):** `./make-twocol.sh` derives
+`paper-twocol.{tex,pdf}` from `paper.tex` (10pt twocolumn; wide tables/figure spanned
+via `table*`/`figure*`; larger `\emergencystretch`). Generated files are throwaway and
+git-ignored — `paper.tex` stays canonical.
+
+**Real submission — use the venue class** (do _not_ ship the generic preview):
+1. Replace `\documentclass[11pt]{article}` with the venue class:
+   - **PETS/PoPETs**: the `popets` class from the PoPETs author kit (not in TeX Live — download it).
+   - USENIX: the `usenixYYYY` style; **IEEE S&P**: `IEEEtran` (in texlive-full); **ACM CCS**: `acmart` with `sigconf` (in texlive-full).
+2. Span only the wide floats — keep Table 1 (related work), Figure 1 (seam), and
+   Table 2 (eval) as `table*`/`figure*`; keep the narrow Table 3 and the checks table
+   single-column.
+3. Let the class span the title + abstract across the top (popets/acmart do this; for
+   plain `article`, wrap with `\twocolumn[\maketitle ...]`).
+4. Body, theorems, and bibliography port unchanged — only the preamble and a few float
+   widths change. Mind the venue page limit (two-column ≈ 8–10 pp here).
+
 ## Section ↔ source-draft map
 The prose was developed in the markdown drafts in **this folder** (Korean commentary +
 English paper text); `paper.tex` is the merged English version. From here on treat
