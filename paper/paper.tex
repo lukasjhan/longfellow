@@ -286,15 +286,20 @@ and run unchanged for SD-JWT VC and mdoc.}
 \end{figure}
 
 \subsection{SD-JWT VC front-end}\label{sec:frontend}
-The signature circuit verifies the issuer's ES256 signature over the payload digest
-$e$; the hash circuit recomputes, in-circuit: (a)~the SD-JWT structure and $e$,
-(b)~for each presented disclosure, its base64url decoding and membership of its digest
-in \texttt{\_sd}, and (c)~the key-binding JWT digest tying the presentation to the
-verifier's \texttt{nonce}/\texttt{aud}. Each requested claim is handled in one of two
-modes: \emph{disclose}---the value is matched against a public pattern and
-revealed---or \emph{assert}---the value stays hidden and only a \emph{predicate} over
-it (range, equality, set membership) is enforced. The holder-binding key is verified
-through the seam but never revealed.
+The signature circuit verifies \emph{two} ECDSA signatures: the issuer's ES256 over
+the payload digest $e$, and the holder's key-binding-JWT signature over its digest
+$e_2$ under the device key $\mathit{dpk}$. The hash circuit recomputes, in-circuit:
+(a)~the SD-JWT structure and $e$, (b)~for each presented disclosure, its base64url
+decoding and membership of its digest in \texttt{\_sd}, and (c)~the key-binding JWT
+payload (its digest $e_2$, and the verifier's \texttt{nonce}/\texttt{aud}). Each
+requested claim is handled in one of two modes: \emph{disclose}---the value is matched
+against a public pattern and revealed---or \emph{assert}---the value stays hidden and
+only a \emph{predicate} over it (range, equality, set membership) is enforced. The
+device key $\mathit{dpk}$ is checked in-circuit to equal the issuer-attested
+\texttt{cnf} key, and the holder's signature over $e_2$ is verified (but, like
+$\mathit{dpk}$ itself, never revealed): a valid presentation therefore \emph{requires
+the holder's secure-element key} (\S\ref{sec:relation}) while leaking no linkable
+handle.
 
 \subsection{Issuer-unlinkable blind nullifier}\label{sec:blind}
 This is our central construction. The goal is a per-context tag $N$ that is unique per
@@ -349,7 +354,29 @@ issuer-committed digests, not on the surface encoding. Only the front-end
 differs---SD-JWT VC parses JWS/base64url/\texttt{\_sd}, whereas mdoc parses
 CBOR/MSO/salted hashes. Consequently the blind-nullifier and revocation blocks are
 identical across formats, and one shared implementation is the source of truth for
-both.
+both. Table~\ref{tab:checks} makes this concrete: the two formats verify the
+\emph{same} in-circuit checks---including the device-key signature that binds each
+presentation to the holder's secure element---and differ only in parsing, which is also
+the source of the runtime gap (\S\ref{sec:eval}).
+
+\begin{table}[t]\centering\small
+\caption{What the circuit verifies, by format. The checks are identical; only the
+parsing front-end differs.}
+\label{tab:checks}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Check & SD-JWT VC & ISO mdoc \\
+\midrule
+Issuer ECDSA              & over JWS hash $e$              & over MSO hash $e$ \\
+Device ECDSA (holder)     & KB-JWT over $e_2$             & session transcript over $e_2$ \\
+Device key attested       & $\mathit{dpk}=\mathtt{cnf}$   & $\mathit{dpk}=\mathtt{deviceKey}$ \\
+Disclosure membership     & digest $\in\mathtt{\_sd}$     & digest $\in\mathtt{valueDigests}$ \\
+Predicate / nullifier / revocation & \multicolumn{2}{c}{identical feature blocks} \\
+\midrule
+Parsing front-end         & JWS, base64url, JSON          & CBOR, MSO \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{The full presentation}
 A complete presentation bundles the signature- and hash-circuit proofs (and, with
@@ -392,10 +419,16 @@ in the ROM), knowledge-sound and zero-knowledge, no setup.
 \subsection{The presentation relation}\label{sec:relation}
 A presentation is a $\mathsf{NIZK}$ for the relation $\mathcal{R}$ on public statement
 $x=(\mathit{ipk},\mathit{ctx},N,D,\phi,\mathit{rinfo})$ and witness
-$w=(\mathit{cred},\sigma,s,r,A,\pi_{\mathrm{rev}})$. $\mathcal{R}(x,w)=1$ iff:
+$w=(\mathit{cred},\sigma,\sigma_{\mathrm{kb}},\mathit{dpk},s,r,A,\pi_{\mathrm{rev}})$.
+$\mathcal{R}(x,w)=1$ iff:
 \begin{enumerate}
 \item $\mathsf{SigVer}(\mathit{ipk},\mathit{cred},\sigma)=1$ --- valid issuer signature
 over the unmodified standard credential;
+\item \emph{(device binding)} $\mathsf{SigVer}(\mathit{dpk},e_2,\sigma_{\mathrm{kb}})=1$
+and $\mathit{dpk}$ equals the holder-binding key the issuer attested in $\mathit{cred}$
+(\texttt{cnf} for SD-JWT VC, \texttt{deviceKey} for mdoc), where $e_2$ binds the
+presentation session (the KB-JWT, resp.\ the session transcript); a valid presentation
+therefore requires the device's secure-element key;
 \item a signed attribute equals $C=\mathsf{Commit}(s;r)$;
 \item $N=H_{\mathsf{nul}}(s,\mathit{ctx})$;
 \item $D$ is consistent with $\mathit{cred}$ and $A\supseteq D$;
@@ -771,8 +804,8 @@ $\mathsf{SigVer}(\mathit{ipk},\mathit{cred}^*,\sigma^*)=1$. Two cases.
 (i)~$\mathit{cred}^*\notin Q$: then $(\mathit{cred}^*,\sigma^*)$ is a valid forgery; an
 EUF-CMA adversary that relays $\mathsf{Issue}$ queries to its signing oracle and outputs
 $(\mathit{cred}^*,\sigma^*)$ wins with probability $\epsilon-\kappa$.
-(ii)~$\mathit{cred}^*\in Q$: then $\mathit{cred}^*$ is validly signed, and clauses~2--6
-bind the disclosed values, the predicate output, the committed nullifier seed (via
+(ii)~$\mathit{cred}^*\in Q$: then $\mathit{cred}^*$ is validly signed, and the remaining
+clauses bind the disclosed values, the predicate output, the committed nullifier seed (via
 binding of $\mathsf{COM}$), and the non-revocation fact to $\mathit{cred}^*$; hence
 $\mathit{cred}^*$ is consistent with $x^*$, contradicting the win condition unless
 $\mathsf{COM}$-binding is broken (probability $\le\beta$). Therefore
