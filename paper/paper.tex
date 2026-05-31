@@ -74,7 +74,7 @@ shared, format-agnostic seam lets the new nullifier and revocation run \emph{unc
 over both} SD-JWT VC and ISO mdoc. On longfellow-zk, a presentation proves in under
 2\,s and verifies in under 0.85\,s on a commodity desktop
 ($\approx$1.0\,s\,/\,0.45\,s for mdoc), with no trusted setup; the issuer-untraceable
-nullifier costs under 5\% over a plain nullifier.
+nullifier costs under 5\% on SD-JWT VC ($\approx$5\% on mdoc) over a plain nullifier.
 \end{abstract}
 
 \noindent\textbf{Keywords:} anonymous credentials; SD-JWT VC; ISO mdoc; transparent
@@ -175,7 +175,7 @@ practical cost (\S\ref{sec:eval}).
 On a commodity desktop, every configuration proves in under 2\,s and verifies in
 under 0.85\,s ($\approx$1.0\,s\,/\,0.45\,s for mdoc), with $\approx$390\,KB (SD-JWT VC)
 and $\approx$350\,KB (mdoc) proofs. The issuer-untraceable blind nullifier costs under
-5\% over a plain nullifier with no increase in proof size, and signed-range revocation
+5\% on SD-JWT VC ($\approx$5\% on mdoc) over a plain nullifier, with no increase in proof size, and signed-range revocation
 adds a constant overhead independent of the revocation-list size. We also quantify,
 for the first time, the in-circuit cost of SD-JWT VC's text encoding: its
 base64url/JSON parsing roughly doubles the hash-circuit work relative to mdoc's CBOR.
@@ -941,7 +941,7 @@ anonymous credentials---unifying selective disclosure, predicates, an
 issuer-unlinkable blind nullifier, and signed-range revocation in one framework over
 both formats---at practical cost (sub-2\,s proving, sub-second verification) and with no
 change to issuers or devices. The blind nullifier, which even the issuer cannot trace
-yet which costs under 5\% over a plain nullifier, closes the gap that batch issuance and
+yet which costs only $\approx$5\% over a plain nullifier, closes the gap that batch issuance and
 prior zero-knowledge systems leave open.
 
 \appendix
