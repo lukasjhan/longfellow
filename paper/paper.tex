@@ -59,18 +59,22 @@ being deployed at national scale in digital identity wallets, yet they provide
 \emph{no unlinkability}: a static issuer signature over static salted hashes lets
 colluding verifiers, and the issuer itself, correlate a user's presentations. The
 only standardized mitigation, \emph{batch issuance}, provides verifier-unlinkability
-only and at a recurring per-presentation cost. We turn \emph{unmodified} SD-JWT VC
-and mdoc credentials into anonymous credentials using \textbf{transparent,
-no-trusted-setup zero-knowledge}. Our framework unifies selective disclosure,
-attribute predicates, an \textbf{issuer-unlinkable per-context blind nullifier}, and
-signed-range non-membership revocation over both formats. The blind nullifier is, to
-our knowledge, the first that binds to an issuer-signed standard credential,
-\emph{never de-anonymizes} its holder, and is \emph{publicly verifiable} in
-transparent zero-knowledge---unlike PLUME/Semaphore nullifiers, Privacy Pass/ARC
-rate-limit tags, and e-cash double-spend tags. Implemented on longfellow-zk, a
-presentation proves in under 2\,s and verifies in under 0.85\,s on commodity hardware
-($\approx$1.0\,s\,/\,0.45\,s for mdoc), with no trusted setup and no change to issuers
-or devices; issuer-untraceability costs under 5\% over a plain nullifier.
+only and at a recurring per-presentation cost. Transparent, no-trusted-setup
+zero-knowledge can already prove possession of an \emph{unmodified}, issuer-signed
+ECDSA credential with no change to issuers or devices---but \emph{longfellow}, which
+introduced this, targets only ISO mdoc and offers no defense against linkable repeat
+use. We extend this line in three ways: (i)~the \textbf{first zero-knowledge circuits
+for the IETF SD-JWT VC text format} (JSON/JWS/base64url); (ii)~an
+\textbf{issuer-unlinkable per-context blind nullifier}---to our knowledge the first
+bound to an issuer-signed standard credential that \emph{never de-anonymizes} its
+holder and is \emph{publicly verifiable}, unlike PLUME/Semaphore nullifiers, Privacy
+Pass/ARC rate-limit tags, and e-cash double-spend tags; and (iii)~signed-range
+non-membership revocation (mechanism due to longfellow) extended to SD-JWT VC. A
+shared, format-agnostic seam lets the new nullifier and revocation run \emph{unchanged
+over both} SD-JWT VC and ISO mdoc. On longfellow-zk, a presentation proves in under
+2\,s and verifies in under 0.85\,s on a commodity desktop
+($\approx$1.0\,s\,/\,0.45\,s for mdoc), with no trusted setup; the issuer-untraceable
+nullifier costs under 5\% over a plain nullifier.
 \end{abstract}
 
 \noindent\textbf{Keywords:} anonymous credentials; SD-JWT VC; ISO mdoc; transparent
@@ -811,6 +815,17 @@ anonymous credentials by re-committing to a Merkle issuance list on a bulletin b
 \textbf{zk-promises}~\cite{shih2025zkpromises} generalizes this to stateful credentials
 with serial-number nullifiers for replay; both require bulletin-board infrastructure
 and trusted setup over re-committed state, not an unmodified credential.
+\textbf{Mombelli}~\cite{mombelli2025zkvc} is the closest prior work to target SD-JWT VC
+directly, but---finding in-circuit parsing of a real SD-JWT prohibitive ($>$1.2M
+constraints for a 1\,KB credential)---it has the \emph{issuer} re-issue the credential
+with extra signed claims: a Poseidon Merkle-tree root over the attributes plus a
+\emph{second} ECDSA-secp256k1 signature, replacing SHA-256 and P-256 with
+circuit-friendly primitives (evaluated mainly under Groth16/PLONK). This requires
+issuer-side modification and new (Poseidon, secp256k1) assumptions, and its
+inter-credential linking value \texttt{cred\_bind} is a per-subject string the issuer
+knows---the opposite of an issuer-untraceable nullifier. We instead verify the genuine
+SHA-256 \texttt{\_sd} digests and the original P-256 signature of an \emph{unmodified}
+SD-JWT VC, add no algebraic assumption, and bind an issuer-untraceable nullifier.
 \textbf{Cinderella}~\cite{delignat2016cinderella} verifies X.509/RSA certificates in a
 Pinocchio SNARK with a per-policy trusted setup.
 
@@ -862,6 +877,7 @@ System & Proof system & Setup & Format & SD & Pred & Unlink (V/I) & Nullifier (i
 Batch issuance (baseline) & --- & --- & SD-JWT/mdoc & \cmark & \xmark & V\,/\,\xmark & \xmark & status list & \cmark\\
 Longfellow~\cite{frigo2024longfellow} & Ligero+sumcheck & N & mdoc(+JWT) & \cmark & \pmark & \cmark/\cmark & \xmark & signed-range$^{a}$ & \cmark\\
 Crescent~\cite{paquin2024crescent} & Groth16(+Spartan) & T & generic JWT/mDL & \cmark & \pmark & \cmark/\cmark & \xmark & --- & \cmark\\
+Mombelli~\cite{mombelli2025zkvc} & Groth16/PLONK & T$^{d}$ & SD-JWT$\to$extended & \cmark & \cmark & \cmark/\cmark & \xmark cred\_bind, issuer-known & --- & \cmark\\
 zk-creds~\cite{rosenberg2023zkcreds} & Groth16+LinkG16 & T & e-passport$\to$recommit & \cmark & \cmark & \cmark/\cmark & \pmark de-anon on reuse & list removal & \cmark\\
 zk-promises~\cite{shih2025zkpromises} & Groth16 & T & account state & --- & \cmark & \cmark/\cmark & serial (replay) & callback & \cmark\\
 BBS\#~\cite{bbs-sharp2025} & BBS+Schnorr NIZK & N$^{b}$ & own BBS-family & \cmark & \cmark & \cmark/\cmark & pseudonym & accumulator & \pmark\\
@@ -879,7 +895,9 @@ Compact e-cash~\cite{chl2005} & CL / Strong-RSA & T & own coin & --- & --- & \cm
 {\footnotesize $^{a}$Revocation mechanism due to longfellow; we extend it to SD-JWT VC.
 \quad $^{b}$BBS\# NIZK needs no setup but requires issuer interaction at presentation.
 \quad $^{c}$Predicates: equality assertion plus the format's built-in date ranges
-(expiry, revocation); general range/set-membership over arbitrary attributes is future work.}
+(expiry, revocation); general range/set-membership over arbitrary attributes is future work.
+\quad $^{d}$Mombelli also evaluates transparent backends; the credential modification
+(Poseidon root + second secp256k1 signature) is issuer-side and backend-independent.}
 \end{table*}
 
 % =====================================================================
