@@ -202,6 +202,18 @@ signed \emph{gaps} between adjacent revoked identifiers. A \textbf{presentation
 context} $\mathit{ctx}$ is a public string scoping a nullifier; the nullifier is
 per-context.
 
+\paragraph{Context authorization (a requirement for unlinkability).} Since
+$N=H_{\mathsf{nul}}(s,\mathit{ctx})$ collides exactly when $\mathit{ctx}$ collides,
+cross-scope unlinkability is a property of the \emph{ctx discipline}, not of the proof
+alone, and we require two things of it. \emph{(i)~Domain separation:} $\mathit{ctx}$
+binds a verifier's scope and an epoch, so distinct scopes yield independent nullifiers.
+\emph{(ii)~Authorization:} the wallet accepts a $\mathit{ctx}$ only from a party that
+can demonstrate authority over that scope; a $\mathit{ctx}$ presented by an unauthorized
+party is treated as an attempt to link and is ignored. Under this discipline a repeat
+presentation to the \emph{same verifier under the same scope} deliberately yields the
+same $N$---the duplication signal the application relies on (one vote per election, one
+account per service)---while no other party can induce that collision.
+
 \subsection{Trust and adversary model}
 \begin{itemize}
 \item \textbf{No trusted setup.} The scheme is transparent: the only public
@@ -319,6 +331,19 @@ This is our central construction. The goal is a per-context tag $N$ that is uniq
 credential within a context, unlinkable across contexts, and untraceable even by the
 issuer.
 
+\paragraph{Why this is not textbook commit-and-prove.} The gadget---commit $s$ at
+issuance, prove $N=H_{\mathsf{nul}}(s,\mathit{ctx})$ at showing---is deliberately
+simple; the contribution is the regime. Untraceable prior nullifiers avoid an issuer
+altogether (PLUME's self-held key, Semaphore's admin-known leaf), making untraceability
+vacuous; ours binds to a credential that a real, later-adversarial issuer
+signed---its signature covering the commitment---yet still cannot link. Two constraints
+make this nontrivial: the commitment must be \emph{blind} (an ordinary issuer-signed
+\texttt{\_sd} disclosure the issuer never opens), and the seed must be bound end-to-end
+in SHA-256 only---from the issuer's signature, through the payload digest $e$ that the
+split-circuit seam carries (\S\ref{sec:seam}), down to the \emph{same $s$ wires} that
+open $C$ and derive $N$ (steps~4--5)---with no trusted setup. A single-field Groth16
+(zk-creds, Semaphore) avoids the seam but only by reintroducing the setup we remove.
+
 \paragraph{Issuance (blind).} The \emph{holder} samples a 256-bit seed $s$ and a
 256-bit blind $r$ and forms a hash commitment $C=\mathsf{SHA256}(s\|r)$ (written
 abstractly as $\mathsf{Commit}(s;r)$ in \S\ref{sec:security}). The issuer
@@ -366,7 +391,10 @@ signature over $e_{\mathrm{span}}=\mathsf{SHA256}(\mathit{epoch}\|\ell\|r)$ is v
 in the signature circuit; $e_{\mathrm{span}}$ is bound to the hash circuit by a fourth
 MAC; $\mathit{epoch}$ is a public freshness pin; and $\ell<\mathit{rev\_id}<r$ is
 checked bitwise. The proof size is \emph{constant regardless of the revocation-list
-size} and reveals neither $\mathit{rev\_id}$ nor which gap was used.
+size} and reveals neither $\mathit{rev\_id}$ nor which gap was used. The holder's proof
+is thus $O(1)$ in the list size, but the CRA signs $O(|\text{revoked}|)$ gaps and
+re-signs them each epoch---an issuance-side cost borne by the authority, off the
+presentation path.
 
 \subsection{Unification across SD-JWT VC and mdoc}\label{sec:unify}
 The seam and feature blocks are format-agnostic: they operate on the shared values and
@@ -569,7 +597,11 @@ Theorem~\ref{thm:zk}.
 \subsection{Remarks and limitations}
 Our soundness reduces to EUF-CMA of standard ECDSA, binding of $\mathsf{COM}$, and
 knowledge-soundness of a hash-based argument (ROM)---\emph{no setup-integrity
-assumption}, unlike Groth16-based schemes. Issuer-untraceability assumes the issuer
+assumption}, unlike Groth16-based schemes. The reduction is stated for the relation
+$\mathcal{R}$ and further assumes the circuits faithfully encode $\mathcal{R}$---notably
+the base64url/JSON and CBOR parsers---which we check by test vectors and differential
+testing against reference parsers, not formal verification (an orthogonal assurance
+shared by all circuit-based ZK systems). Issuer-untraceability assumes the issuer
 issues a well-formed signature (a malicious issuer can refuse service or mark a
 credential---out of scope, as for all surveyed schemes). We prove possession of a
 static credential; stateful properties (reputation, asynchronous bans) are out of
@@ -784,8 +816,9 @@ assumption. The random-oracle heuristic underlies both Fiat--Shamir and the blin
 nullifier.
 \paragraph{Proof size.} Transparent (hash-based) proofs are larger
 ($\approx$350--390\,KB) than pairing-based SNARKs; this is the price of removing the
-trusted setup. Reducing proof size (e.g., via recursion or a succinct wrapper) is
-future work.
+trusted setup. At this size a proof does not fit a QR code; presentment assumes a
+return channel (NFC, BLE, or an HTTPS callback), as mDL already uses. Reducing proof
+size (e.g., via recursion or a succinct wrapper) is future work.
 \paragraph{Honest issuance.} Issuer-untraceability treats the issuer as adversarial
 \emph{after} issuance but assumes it issues a well-formed signature; a malicious issuer
 can always refuse service or mark a credential---an orthogonal problem shared by all
