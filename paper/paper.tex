@@ -36,9 +36,18 @@
 \theoremstyle{definition}
 \newtheorem{definition}[theorem]{Definition}
 
+% Author visibility: \anonfalse = named (ePrint / camera-ready);
+%                     \anontrue  = anonymized (double-blind venue submission).
+\newif\ifanon
+\anonfalse
+
 \title{Anonymous Credentials from SD-JWT VC:\\
 Issuer-Unlinkable Nullifiers and Revocation in Transparent Zero-Knowledge}
-\author{Anonymous Submission\thanks{Author block withheld for review.}}
+\ifanon
+  \author{Anonymous Submission\thanks{Author block withheld for review.}}
+\else
+  \author{Jongho Han\\ Hopae \\ \texttt{lukas@hopae.com}\,$\cdot$\,\texttt{lukas.j.han@gmail.com}}
+\fi
 \date{}
 
 \begin{document}
@@ -63,6 +72,10 @@ presentation proves in under 2\,s and verifies in under 0.85\,s on commodity har
 ($\approx$1.0\,s\,/\,0.45\,s for mdoc), with no trusted setup and no change to issuers
 or devices; issuer-untraceability costs under 5\% over a plain nullifier.
 \end{abstract}
+
+\noindent\textbf{Keywords:} anonymous credentials; SD-JWT VC; ISO mdoc; transparent
+zero-knowledge; issuer-unlinkable nullifier; selective disclosure; unlinkability;
+revocation; eIDAS.
 
 % =====================================================================
 \section{Introduction}\label{sec:intro}
