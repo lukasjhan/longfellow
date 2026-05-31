@@ -233,6 +233,19 @@ and proven in zero knowledge, never revealed.
 \item \textbf{Revocation soundness \& privacy.}
 \end{enumerate}
 
+\paragraph{Uniqueness scope and issuance assumption.}
+Goal~5 is \emph{per credential}: one credential yields one nullifier per context.
+Because issuance is blind, the issuer never sees the seed $s$ and cannot enforce that a
+person holds only one, so a holder with $k$ credentials produces $k$ independent
+nullifiers. Sybil-resistance applications (e.g., one vote per election) therefore rest
+on the standard assumption that the issuer issues \emph{one credential per
+person}---an identified, out-of-band step the issuer already controls---after which
+per-credential uniqueness \emph{is} per-person uniqueness and the nullifier
+deduplicates that credential's re-presentations within a context. Making $s$
+person-unique without the issuer learning it (e.g., deriving $s$ in the secure element,
+or an issuer-side deterministic tag proven equal to $s$ in zero-knowledge) is an
+alternative we leave to future work.
+
 % =====================================================================
 \section{Construction}\label{sec:construction}
 
@@ -495,6 +508,10 @@ presentations of one credential under one context carry identical $N$; and for $
 s'$, $\Pr[H_{\mathsf{nul}}(s,\mathit{ctx})=H_{\mathsf{nul}}(s',\mathit{ctx})]\le\mathsf{negl}(\lambda)$.
 Binding of $\mathsf{COM}$ prevents opening $C$ to a second seed within a context.
 \end{theorem}
+
+\noindent\emph{Scope.} Theorem~\ref{thm:nullunique} is per credential; one-per-person
+uniqueness additionally requires the issuance assumption of \S\ref{sec:goals} (a holder
+with $k$ credentials has $k$ independent seeds, hence $k$ nullifiers).
 
 \begin{definition}[Issuer-untraceability $\star$]\label{def:untrace}
 $\mathcal{A}$ \emph{is the issuer}: it outputs $\mathit{ipk}$ and runs $q$ issuance
