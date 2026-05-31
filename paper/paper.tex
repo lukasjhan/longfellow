@@ -324,7 +324,13 @@ issuer.
 abstractly as $\mathsf{Commit}(s;r)$ in \S\ref{sec:security}). The issuer
 signs $C$ as an ordinary disclosure (\texttt{pseudonym\_commitment}) included in
 \texttt{\_sd}; it commits to $C$---the holder cannot later swap it---\emph{yet never
-observes $s$ or $r$}.
+observes $s$ or $r$}. This is the issuer's \emph{existing} SD-JWT issuance, unchanged:
+\texttt{pseudonym\_commitment} is an ordinary \texttt{\_sd} disclosure whose value is
+holder-supplied---just as the holder-binding \texttt{cnf} key is a holder-supplied
+value the issuer already attests. No signing logic, key, signature scheme, or
+infrastructure changes; the claim set gains one entry, and the issuer need not even
+validate $C$, since a malformed commitment only prevents its own holder from later
+opening it.
 
 \paragraph{Presentation.} For a verifier-chosen context the prover takes
 $\mathit{ctx\_hash}=\mathsf{SHA256}(\mathit{ctx})$ as a public input and proves, in
