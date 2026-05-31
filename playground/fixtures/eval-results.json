@@ -1,0 +1,903 @@
+{
+  "reps": 7,
+  "warmup": 1,
+  "generatedAt": "2026-06-01T00:00:00Z",
+  "results": [
+    {
+      "key": "sdjwt-base",
+      "format": "SD-JWT VC",
+      "feature": "base (SD + sig)",
+      "bin": "sdjwt_split",
+      "accept": true,
+      "prove": {
+        "median": 1961,
+        "mean": 1980.9,
+        "min": 1951,
+        "max": 2037,
+        "sd": 31.1,
+        "n": 7
+      },
+      "verify": {
+        "median": 796,
+        "mean": 798.3,
+        "min": 784,
+        "max": 827,
+        "sd": 13.5,
+        "n": 7
+      },
+      "bundle_kb": 391,
+      "build_ms": 541,
+      "sig": {
+        "ninputs": 3739,
+        "circ_kb": 164,
+        "proof_kb": 194
+      },
+      "hash": {
+        "ninputs": 195386,
+        "circ_kb": 1750,
+        "proof_kb": 197
+      },
+      "samples": [
+        {
+          "prove_ms": 1958,
+          "verify_ms": 784,
+          "bundle_kb": 391,
+          "build_ms": 505,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 193,
+          "hash_ninputs": 195386,
+          "hash_circ_kb": 1750,
+          "hash_proof_kb": 197,
+          "accept": true
+        },
+        {
+          "prove_ms": 2037,
+          "verify_ms": 827,
+          "bundle_kb": 391,
+          "build_ms": 520,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 195386,
+          "hash_circ_kb": 1750,
+          "hash_proof_kb": 196,
+          "accept": true
+        },
+        {
+          "prove_ms": 1991,
+          "verify_ms": 796,
+          "bundle_kb": 391,
+          "build_ms": 522,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 195386,
+          "hash_circ_kb": 1750,
+          "hash_proof_kb": 196,
+          "accept": true
+        },
+        {
+          "prove_ms": 1955,
+          "verify_ms": 803,
+          "bundle_kb": 392,
+          "build_ms": 540,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 195386,
+          "hash_circ_kb": 1750,
+          "hash_proof_kb": 197,
+          "accept": true
+        },
+        {
+          "prove_ms": 1961,
+          "verify_ms": 794,
+          "bundle_kb": 391,
+          "build_ms": 512,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 195386,
+          "hash_circ_kb": 1750,
+          "hash_proof_kb": 197,
+          "accept": true
+        },
+        {
+          "prove_ms": 2013,
+          "verify_ms": 784,
+          "bundle_kb": 392,
+          "build_ms": 531,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 195386,
+          "hash_circ_kb": 1750,
+          "hash_proof_kb": 197,
+          "accept": true
+        },
+        {
+          "prove_ms": 1951,
+          "verify_ms": 800,
+          "bundle_kb": 391,
+          "build_ms": 541,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 195386,
+          "hash_circ_kb": 1750,
+          "hash_proof_kb": 197,
+          "accept": true
+        }
+      ]
+    },
+    {
+      "key": "sdjwt-null",
+      "format": "SD-JWT VC",
+      "feature": "+ nullifier",
+      "bin": "sdjwt_null_split",
+      "accept": true,
+      "prove": {
+        "median": 1844,
+        "mean": 1855,
+        "min": 1828,
+        "max": 1916,
+        "sd": 27.4,
+        "n": 7
+      },
+      "verify": {
+        "median": 704,
+        "mean": 711.9,
+        "min": 689,
+        "max": 756,
+        "sd": 19.9,
+        "n": 7
+      },
+      "bundle_kb": 390,
+      "build_ms": 485,
+      "sig": {
+        "ninputs": 3739,
+        "circ_kb": 164,
+        "proof_kb": 194
+      },
+      "hash": {
+        "ninputs": 189046,
+        "circ_kb": 1805,
+        "proof_kb": 195
+      },
+      "samples": [
+        {
+          "prove_ms": 1865,
+          "verify_ms": 756,
+          "bundle_kb": 389,
+          "build_ms": 500,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 189046,
+          "hash_circ_kb": 1805,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1828,
+          "verify_ms": 703,
+          "bundle_kb": 389,
+          "build_ms": 480,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 189046,
+          "hash_circ_kb": 1805,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1856,
+          "verify_ms": 720,
+          "bundle_kb": 390,
+          "build_ms": 493,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 189046,
+          "hash_circ_kb": 1805,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1839,
+          "verify_ms": 704,
+          "bundle_kb": 389,
+          "build_ms": 486,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 193,
+          "hash_ninputs": 189046,
+          "hash_circ_kb": 1805,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1837,
+          "verify_ms": 708,
+          "bundle_kb": 388,
+          "build_ms": 512,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 193,
+          "hash_ninputs": 189046,
+          "hash_circ_kb": 1805,
+          "hash_proof_kb": 194,
+          "accept": true
+        },
+        {
+          "prove_ms": 1844,
+          "verify_ms": 689,
+          "bundle_kb": 389,
+          "build_ms": 554,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 189046,
+          "hash_circ_kb": 1805,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1916,
+          "verify_ms": 703,
+          "bundle_kb": 390,
+          "build_ms": 485,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 189046,
+          "hash_circ_kb": 1805,
+          "hash_proof_kb": 195,
+          "accept": true
+        }
+      ]
+    },
+    {
+      "key": "sdjwt-blind",
+      "format": "SD-JWT VC",
+      "feature": "+ blind nullifier",
+      "bin": "sdjwt_null_blind",
+      "accept": true,
+      "prove": {
+        "median": 1917,
+        "mean": 1914.4,
+        "min": 1881,
+        "max": 1937,
+        "sd": 18.4,
+        "n": 7
+      },
+      "verify": {
+        "median": 817,
+        "mean": 814.9,
+        "min": 792,
+        "max": 839,
+        "sd": 15,
+        "n": 7
+      },
+      "bundle_kb": 389,
+      "build_ms": 522,
+      "sig": {
+        "ninputs": 3739,
+        "circ_kb": 164,
+        "proof_kb": 194
+      },
+      "hash": {
+        "ninputs": 193790,
+        "circ_kb": 1754,
+        "proof_kb": 195
+      },
+      "samples": [
+        {
+          "prove_ms": 1917,
+          "verify_ms": 804,
+          "bundle_kb": 390,
+          "build_ms": 507,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 193790,
+          "hash_circ_kb": 1754,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1937,
+          "verify_ms": 821,
+          "bundle_kb": 389,
+          "build_ms": 511,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 193,
+          "hash_ninputs": 193790,
+          "hash_circ_kb": 1754,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1881,
+          "verify_ms": 817,
+          "bundle_kb": 390,
+          "build_ms": 505,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 193790,
+          "hash_circ_kb": 1754,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1908,
+          "verify_ms": 828,
+          "bundle_kb": 389,
+          "build_ms": 501,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 193790,
+          "hash_circ_kb": 1754,
+          "hash_proof_kb": 194,
+          "accept": true
+        },
+        {
+          "prove_ms": 1900,
+          "verify_ms": 839,
+          "bundle_kb": 389,
+          "build_ms": 508,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 193790,
+          "hash_circ_kb": 1754,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1934,
+          "verify_ms": 803,
+          "bundle_kb": 390,
+          "build_ms": 522,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 193790,
+          "hash_circ_kb": 1754,
+          "hash_proof_kb": 195,
+          "accept": true
+        },
+        {
+          "prove_ms": 1924,
+          "verify_ms": 792,
+          "bundle_kb": 389,
+          "build_ms": 522,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 193790,
+          "hash_circ_kb": 1754,
+          "hash_proof_kb": 195,
+          "accept": true
+        }
+      ]
+    },
+    {
+      "key": "sdjwt-revoc",
+      "format": "SD-JWT VC",
+      "feature": "+ revocation",
+      "bin": "sdjwt_revoc_split",
+      "accept": true,
+      "prove": {
+        "median": 1945,
+        "mean": 1953.9,
+        "min": 1911,
+        "max": 2068,
+        "sd": 50.2,
+        "n": 7
+      },
+      "verify": {
+        "median": 818,
+        "mean": 823.3,
+        "min": 814,
+        "max": 848,
+        "sd": 11.4,
+        "n": 7
+      },
+      "bundle_kb": 406,
+      "build_ms": 513,
+      "sig": {
+        "ninputs": 5288,
+        "circ_kb": 199,
+        "proof_kb": 212
+      },
+      "hash": {
+        "ninputs": 188858,
+        "circ_kb": 1872,
+        "proof_kb": 193
+      },
+      "samples": [
+        {
+          "prove_ms": 1912,
+          "verify_ms": 818,
+          "bundle_kb": 405,
+          "build_ms": 497,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 211,
+          "hash_ninputs": 188858,
+          "hash_circ_kb": 1872,
+          "hash_proof_kb": 194,
+          "accept": true
+        },
+        {
+          "prove_ms": 1924,
+          "verify_ms": 815,
+          "bundle_kb": 406,
+          "build_ms": 525,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 188858,
+          "hash_circ_kb": 1872,
+          "hash_proof_kb": 193,
+          "accept": true
+        },
+        {
+          "prove_ms": 1911,
+          "verify_ms": 814,
+          "bundle_kb": 405,
+          "build_ms": 504,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 188858,
+          "hash_circ_kb": 1872,
+          "hash_proof_kb": 192,
+          "accept": true
+        },
+        {
+          "prove_ms": 2068,
+          "verify_ms": 848,
+          "bundle_kb": 406,
+          "build_ms": 559,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 188858,
+          "hash_circ_kb": 1872,
+          "hash_proof_kb": 194,
+          "accept": true
+        },
+        {
+          "prove_ms": 1945,
+          "verify_ms": 820,
+          "bundle_kb": 405,
+          "build_ms": 526,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 188858,
+          "hash_circ_kb": 1872,
+          "hash_proof_kb": 193,
+          "accept": true
+        },
+        {
+          "prove_ms": 1961,
+          "verify_ms": 817,
+          "bundle_kb": 407,
+          "build_ms": 506,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 188858,
+          "hash_circ_kb": 1872,
+          "hash_proof_kb": 194,
+          "accept": true
+        },
+        {
+          "prove_ms": 1956,
+          "verify_ms": 831,
+          "bundle_kb": 406,
+          "build_ms": 513,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 188858,
+          "hash_circ_kb": 1872,
+          "hash_proof_kb": 193,
+          "accept": true
+        }
+      ]
+    },
+    {
+      "key": "mdoc-null",
+      "format": "ISO mdoc",
+      "feature": "+ nullifier",
+      "bin": "mdoc_null_split",
+      "accept": true,
+      "prove": {
+        "median": 1003,
+        "mean": 1006.3,
+        "min": 941,
+        "max": 1053,
+        "sd": 35.1,
+        "n": 7
+      },
+      "verify": {
+        "median": 432,
+        "mean": 435.3,
+        "min": 417,
+        "max": 451,
+        "sd": 11.6,
+        "n": 7
+      },
+      "bundle_kb": 345,
+      "build_ms": 257,
+      "sig": {
+        "ninputs": 3739,
+        "circ_kb": 164,
+        "proof_kb": 194
+      },
+      "hash": {
+        "ninputs": 95590,
+        "circ_kb": 586,
+        "proof_kb": 150
+      },
+      "samples": [
+        {
+          "prove_ms": 1021,
+          "verify_ms": 443,
+          "bundle_kb": 345,
+          "build_ms": 247,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 95590,
+          "hash_circ_kb": 586,
+          "hash_proof_kb": 151,
+          "accept": true
+        },
+        {
+          "prove_ms": 997,
+          "verify_ms": 417,
+          "bundle_kb": 344,
+          "build_ms": 239,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 95590,
+          "hash_circ_kb": 586,
+          "hash_proof_kb": 150,
+          "accept": true
+        },
+        {
+          "prove_ms": 1003,
+          "verify_ms": 432,
+          "bundle_kb": 345,
+          "build_ms": 246,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 95590,
+          "hash_circ_kb": 586,
+          "hash_proof_kb": 151,
+          "accept": true
+        },
+        {
+          "prove_ms": 985,
+          "verify_ms": 425,
+          "bundle_kb": 345,
+          "build_ms": 257,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 95590,
+          "hash_circ_kb": 586,
+          "hash_proof_kb": 151,
+          "accept": true
+        },
+        {
+          "prove_ms": 1044,
+          "verify_ms": 448,
+          "bundle_kb": 344,
+          "build_ms": 237,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 95590,
+          "hash_circ_kb": 586,
+          "hash_proof_kb": 150,
+          "accept": true
+        },
+        {
+          "prove_ms": 941,
+          "verify_ms": 431,
+          "bundle_kb": 345,
+          "build_ms": 234,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 95590,
+          "hash_circ_kb": 586,
+          "hash_proof_kb": 150,
+          "accept": true
+        },
+        {
+          "prove_ms": 1053,
+          "verify_ms": 451,
+          "bundle_kb": 345,
+          "build_ms": 257,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 95590,
+          "hash_circ_kb": 586,
+          "hash_proof_kb": 150,
+          "accept": true
+        }
+      ]
+    },
+    {
+      "key": "mdoc-blind",
+      "format": "ISO mdoc",
+      "feature": "+ blind nullifier",
+      "bin": "mdoc_null_blind",
+      "accept": true,
+      "prove": {
+        "median": 1057,
+        "mean": 1049.4,
+        "min": 1024,
+        "max": 1074,
+        "sd": 17.8,
+        "n": 7
+      },
+      "verify": {
+        "median": 475,
+        "mean": 474.4,
+        "min": 459,
+        "max": 489,
+        "sd": 10.1,
+        "n": 7
+      },
+      "bundle_kb": 347,
+      "build_ms": 253,
+      "sig": {
+        "ninputs": 3739,
+        "circ_kb": 164,
+        "proof_kb": 194
+      },
+      "hash": {
+        "ninputs": 100078,
+        "circ_kb": 638,
+        "proof_kb": 152
+      },
+      "samples": [
+        {
+          "prove_ms": 1057,
+          "verify_ms": 489,
+          "bundle_kb": 347,
+          "build_ms": 249,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 100078,
+          "hash_circ_kb": 638,
+          "hash_proof_kb": 152,
+          "accept": true
+        },
+        {
+          "prove_ms": 1064,
+          "verify_ms": 459,
+          "bundle_kb": 347,
+          "build_ms": 263,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 100078,
+          "hash_circ_kb": 638,
+          "hash_proof_kb": 152,
+          "accept": true
+        },
+        {
+          "prove_ms": 1027,
+          "verify_ms": 469,
+          "bundle_kb": 346,
+          "build_ms": 246,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 193,
+          "hash_ninputs": 100078,
+          "hash_circ_kb": 638,
+          "hash_proof_kb": 152,
+          "accept": true
+        },
+        {
+          "prove_ms": 1040,
+          "verify_ms": 476,
+          "bundle_kb": 346,
+          "build_ms": 276,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 100078,
+          "hash_circ_kb": 638,
+          "hash_proof_kb": 152,
+          "accept": true
+        },
+        {
+          "prove_ms": 1060,
+          "verify_ms": 466,
+          "bundle_kb": 346,
+          "build_ms": 284,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 100078,
+          "hash_circ_kb": 638,
+          "hash_proof_kb": 152,
+          "accept": true
+        },
+        {
+          "prove_ms": 1024,
+          "verify_ms": 475,
+          "bundle_kb": 347,
+          "build_ms": 246,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 100078,
+          "hash_circ_kb": 638,
+          "hash_proof_kb": 152,
+          "accept": true
+        },
+        {
+          "prove_ms": 1074,
+          "verify_ms": 487,
+          "bundle_kb": 347,
+          "build_ms": 253,
+          "sig_ninputs": 3739,
+          "sig_circ_kb": 164,
+          "sig_proof_kb": 194,
+          "hash_ninputs": 100078,
+          "hash_circ_kb": 638,
+          "hash_proof_kb": 152,
+          "accept": true
+        }
+      ]
+    },
+    {
+      "key": "mdoc-revoc",
+      "format": "ISO mdoc",
+      "feature": "+ revocation",
+      "bin": "mdoc_revoc_split",
+      "accept": true,
+      "prove": {
+        "median": 1033,
+        "mean": 1028.6,
+        "min": 1000,
+        "max": 1053,
+        "sd": 16.8,
+        "n": 7
+      },
+      "verify": {
+        "median": 459,
+        "mean": 462.7,
+        "min": 449,
+        "max": 495,
+        "sd": 14.9,
+        "n": 7
+      },
+      "bundle_kb": 361,
+      "build_ms": 254,
+      "sig": {
+        "ninputs": 5288,
+        "circ_kb": 199,
+        "proof_kb": 212
+      },
+      "hash": {
+        "ninputs": 95402,
+        "circ_kb": 583,
+        "proof_kb": 148
+      },
+      "samples": [
+        {
+          "prove_ms": 1042,
+          "verify_ms": 453,
+          "bundle_kb": 360,
+          "build_ms": 256,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 211,
+          "hash_ninputs": 95402,
+          "hash_circ_kb": 583,
+          "hash_proof_kb": 148,
+          "accept": true
+        },
+        {
+          "prove_ms": 1053,
+          "verify_ms": 452,
+          "bundle_kb": 360,
+          "build_ms": 257,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 95402,
+          "hash_circ_kb": 583,
+          "hash_proof_kb": 148,
+          "accept": true
+        },
+        {
+          "prove_ms": 1010,
+          "verify_ms": 495,
+          "bundle_kb": 360,
+          "build_ms": 273,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 95402,
+          "hash_circ_kb": 583,
+          "hash_proof_kb": 148,
+          "accept": true
+        },
+        {
+          "prove_ms": 1029,
+          "verify_ms": 472,
+          "bundle_kb": 361,
+          "build_ms": 247,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 211,
+          "hash_ninputs": 95402,
+          "hash_circ_kb": 583,
+          "hash_proof_kb": 149,
+          "accept": true
+        },
+        {
+          "prove_ms": 1033,
+          "verify_ms": 459,
+          "bundle_kb": 361,
+          "build_ms": 254,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 95402,
+          "hash_circ_kb": 583,
+          "hash_proof_kb": 148,
+          "accept": true
+        },
+        {
+          "prove_ms": 1000,
+          "verify_ms": 449,
+          "bundle_kb": 361,
+          "build_ms": 254,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 95402,
+          "hash_circ_kb": 583,
+          "hash_proof_kb": 148,
+          "accept": true
+        },
+        {
+          "prove_ms": 1033,
+          "verify_ms": 459,
+          "bundle_kb": 361,
+          "build_ms": 254,
+          "sig_ninputs": 5288,
+          "sig_circ_kb": 199,
+          "sig_proof_kb": 212,
+          "hash_ninputs": 95402,
+          "hash_circ_kb": 583,
+          "hash_proof_kb": 148,
+          "accept": true
+        }
+      ]
+    }
+  ]
+}

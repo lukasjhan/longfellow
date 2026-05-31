@@ -1,0 +1,8 @@
+key,format,feature,bin,accept,prove_median_ms,prove_min_ms,prove_max_ms,prove_sd,verify_median_ms,verify_min_ms,verify_max_ms,verify_sd,bundle_kb,sig_ninputs,sig_circ_kb,sig_proof_kb,hash_ninputs,hash_circ_kb,hash_proof_kb,build_ms,reps
+sdjwt-base,"SD-JWT VC","base (SD + sig)",sdjwt_split,true,1961,1951,2037,31.1,796,784,827,13.5,391,3739,164,194,195386,1750,197,541,7
+sdjwt-null,"SD-JWT VC","+ nullifier",sdjwt_null_split,true,1844,1828,1916,27.4,704,689,756,19.9,390,3739,164,194,189046,1805,195,485,7
+sdjwt-blind,"SD-JWT VC","+ blind nullifier",sdjwt_null_blind,true,1917,1881,1937,18.4,817,792,839,15,389,3739,164,194,193790,1754,195,522,7
+sdjwt-revoc,"SD-JWT VC","+ revocation",sdjwt_revoc_split,true,1945,1911,2068,50.2,818,814,848,11.4,406,5288,199,212,188858,1872,193,513,7
+mdoc-null,"ISO mdoc","+ nullifier",mdoc_null_split,true,1003,941,1053,35.1,432,417,451,11.6,345,3739,164,194,95590,586,150,257,7
+mdoc-blind,"ISO mdoc","+ blind nullifier",mdoc_null_blind,true,1057,1024,1074,17.8,475,459,489,10.1,347,3739,164,194,100078,638,152,253,7
+mdoc-revoc,"ISO mdoc","+ revocation",mdoc_revoc_split,true,1033,1000,1053,16.8,459,449,495,14.9,361,5288,199,212,95402,583,148,254,7

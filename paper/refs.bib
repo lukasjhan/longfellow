@@ -1,0 +1,196 @@
+% Bibliography for "Anonymous Credentials from SD-JWT VC".
+% Some fields (pages, exact venue) are placeholders [VERIFY] pending camera-ready.
+% Idemix/U-Prove entries are textbook references not independently re-verified in our
+% prior-art survey — confirm against primary sources before relying on specifics.
+
+% ---------- Core base system ----------
+@article{frigo2024longfellow,
+  author    = {Frigo, Matteo and shelat, abhi},
+  title     = {Anonymous Credentials from {ECDSA}},
+  journal   = {IACR Communications in Cryptology},
+  year      = {2024},
+  note      = {IACR ePrint 2024/2010},
+  url       = {https://eprint.iacr.org/2024/2010}
+}
+
+@misc{libzk-draft,
+  author       = {Frigo, Matteo and shelat, abhi},
+  title        = {{libzk}: A {C++} Library for Zero-Knowledge Proofs},
+  howpublished = {IETF Internet-Draft draft-google-cfrg-libzk-01 (expired; individual submission, Informational)},
+  year         = {2024},
+  url          = {https://www.ietf.org/archive/id/draft-google-cfrg-libzk-01.html}
+}
+
+% ---------- ZK over standard credentials ----------
+@misc{paquin2024crescent,
+  author       = {Paquin, Christian and Policharla, Guru-Vamsi and Zaverucha, Greg},
+  title        = {Crescent: Stronger Privacy for Existing Credentials},
+  year         = {2024},
+  note         = {IACR ePrint 2024/2013},
+  url          = {https://eprint.iacr.org/2024/2013}
+}
+
+@inproceedings{rosenberg2023zkcreds,
+  author    = {Rosenberg, Michael and White, Jacob and Garman, Christina and Miers, Ian},
+  title     = {{zk-creds}: Flexible Anonymous Credentials from {zkSNARKs} and Existing Identity Infrastructure},
+  booktitle = {IEEE Symposium on Security and Privacy (S\&P)},
+  year      = {2023},
+  note      = {IACR ePrint 2022/878}
+}
+
+@inproceedings{shih2025zkpromises,
+  author    = {Shih, Maurice and Rosenberg, Michael and Kailad, Hari and Miers, Ian},
+  title     = {{zk-promises}: Anonymous Moderation, Reputation, and Blocking from Anonymous Credentials with Callbacks},
+  booktitle = {USENIX Security Symposium},
+  year      = {2025},
+  note      = {IACR ePrint 2024/1260}
+}
+
+@inproceedings{delignat2016cinderella,
+  author    = {Delignat-Lavaud, Antoine and Fournet, C{\'e}dric and Kohlweiss, Markulf and Parno, Bryan},
+  title     = {Cinderella: Turning Shabby {X.509} Certificates into Elegant Anonymous Credentials with the Magic of Verifiable Computation},
+  booktitle = {IEEE Symposium on Security and Privacy (S\&P)},
+  year      = {2016}
+}
+
+% ---------- Anonymous-credential signatures ----------
+@inproceedings{camenisch2001cl,
+  author    = {Camenisch, Jan and Lysyanskaya, Anna},
+  title     = {An Efficient System for Non-transferable Anonymous Credentials with Optional Anonymity Revocation},
+  booktitle = {EUROCRYPT},
+  year      = {2001}
+}
+
+@inproceedings{camenisch2002cl,
+  author    = {Camenisch, Jan and Lysyanskaya, Anna},
+  title     = {A Signature Scheme with Efficient Protocols},
+  booktitle = {Security in Communication Networks (SCN)},
+  year      = {2002}
+}
+
+@book{brands2000,
+  author    = {Brands, Stefan A.},
+  title     = {Rethinking Public Key Infrastructures and Digital Certificates: Building in Privacy},
+  publisher = {MIT Press},
+  year      = {2000}
+}
+
+@techreport{uprove-spec,
+  author      = {Paquin, Christian and Zaverucha, Greg},
+  title       = {{U-Prove} Cryptographic Specification {V1.1} (Revision 3)},
+  institution = {Microsoft Research},
+  year        = {2013}
+}
+
+@misc{bbs-sharp2025,
+  title        = {{BBS\#}: Pairing-free Anonymous Credentials for {eIDAS 2.0} (MACBBS)},
+  year         = {2025},
+  note         = {IACR ePrint 2025/619; see also NIST WPEC 2024},
+  url          = {https://eprint.iacr.org/2025/619}
+}
+
+% ---------- Nullifiers / rate-limiting / e-cash ----------
+@misc{semaphore,
+  author       = {{Privacy \& Scaling Explorations}},
+  title        = {Semaphore: A Zero-Knowledge Protocol for Anonymous Signaling},
+  howpublished = {\url{https://semaphore.pse.dev}},
+  year         = {2024}
+}
+
+@misc{plume2022,
+  author       = {Gupta, Aayush and Gurkan, Kobi},
+  title        = {{PLUME}: An {ECDSA} Nullifier Scheme for Unique Pseudonymity within Zero Knowledge Proofs},
+  year         = {2022},
+  note         = {IACR ePrint 2022/1255; ERC-7524},
+  url          = {https://eprint.iacr.org/2022/1255}
+}
+
+@misc{arc-draft,
+  author       = {Yun, Cathie and others},
+  title        = {The Anonymous Rate-Limited Credentials ({ARC}) Protocol},
+  howpublished = {IETF Internet-Draft draft-ietf-privacypass-arc-protocol},
+  year         = {2025},
+  url          = {https://datatracker.ietf.org/doc/draft-ietf-privacypass-arc-protocol/}
+}
+
+@inproceedings{chl2005,
+  author    = {Camenisch, Jan and Hohenberger, Susan and Lysyanskaya, Anna},
+  title     = {Compact {E-Cash}},
+  booktitle = {EUROCRYPT},
+  year      = {2005},
+  note      = {IACR ePrint 2005/060}
+}
+
+% ---------- Formats, standards, deployment ----------
+@misc{sdjwtvc,
+  author       = {Terbu, Oliver and Fett, Daniel and Campbell, Brian},
+  title        = {{SD-JWT}-based Verifiable Credentials ({SD-JWT VC})},
+  howpublished = {IETF Internet-Draft draft-ietf-oauth-sd-jwt-vc},
+  year         = {2025},
+  url          = {https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/}
+}
+
+@techreport{iso18013,
+  author      = {{ISO/IEC}},
+  title       = {{ISO/IEC 18013-5}: Personal identification --- {ISO}-compliant driving licence --- Part 5: Mobile driving licence ({mDL}) application},
+  institution = {ISO/IEC},
+  year        = {2021}
+}
+
+@misc{rfc9901,
+  author       = {Fett, Daniel and Yasuda, Kristina and Campbell, Brian},
+  title        = {Selective Disclosure for {JWTs} ({SD-JWT})},
+  howpublished = {RFC 9901},
+  year         = {2025},
+  note         = {[VERIFY RFC number/section for batch issuance]},
+  url          = {https://www.rfc-editor.org/rfc/rfc9901}
+}
+
+@misc{openid4vci,
+  author       = {{OpenID Foundation}},
+  title        = {{OpenID} for Verifiable Credential Issuance 1.0},
+  year         = {2025},
+  url          = {https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html}
+}
+
+@misc{haip,
+  author       = {{OpenID Foundation}},
+  title        = {{OpenID4VC} High Assurance Interoperability Profile 1.0},
+  year         = {2025},
+  url          = {https://openid.net/specs/openid4vc-high-assurance-interoperability-profile-1_0-final.html}
+}
+
+@misc{eudi-arf,
+  author       = {{European Commission}},
+  title        = {The {European} Digital Identity Wallet Architecture and Reference Framework ({ARF})},
+  year         = {2024},
+  url          = {https://github.com/eu-digital-identity-wallet/eudi-doc-architecture-and-reference-framework}
+}
+
+@misc{eudi-crypto-feedback,
+  author       = {Baum, Carsten and Blazy, Olivier and Camenisch, Jan and Hoepman, Jaap-Henk and Lee, Eysa and Lehmann, Anja and Lysyanskaya, Anna and Mayrhofer, Ren{\'e} and Montgomery, Hart and Nguyen, Ngoc Khanh and Preneel, Bart and shelat, abhi and Slamanig, Daniel and Tessaro, Stefano and Thomsen, S{\o}ren Eller and Troncoso, Carmela},
+  title        = {Cryptographers' Feedback on the {EU} Digital Identity's {ARF}},
+  year         = {2024},
+  howpublished = {EU Digital Identity Wallet ARF GitHub Discussion \#211},
+  url          = {https://github.com/eu-digital-identity-wallet/eudi-doc-architecture-and-reference-framework/discussions/211}
+}
+
+@techreport{etsi119476,
+  author      = {{ETSI}},
+  title       = {{ETSI TR 119476-1}: Electronic Signatures and Trust Infrastructures; Analysis of selective disclosure and unlinkability},
+  institution = {ETSI},
+  year        = {2025},
+  note        = {V1.3.1}
+}
+
+@misc{eidas2,
+  author       = {{European Parliament and Council}},
+  title        = {Regulation ({EU}) 2024/1183 amending Regulation ({EU}) No 910/2014 as regards establishing the {European} Digital Identity Framework},
+  year         = {2024}
+}
+
+@misc{aamva-mdl,
+  author       = {{AAMVA}},
+  title        = {Mobile Driver's License ({mDL}) Implementation Guidelines},
+  year         = {2023}
+}
