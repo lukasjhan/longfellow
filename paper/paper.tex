@@ -20,7 +20,6 @@
 \usepackage{pifont}      % \ding for check/cross marks
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
-\usepackage{enumitem}
 
 % comparison-table marks
 \newcommand{\cmark}{\ding{51}}          % yes
@@ -132,7 +131,7 @@ credential, and---being SHA-256 throughout---it adds no cryptographic assumption
 beyond the base proof system.
 
 \paragraph{Contributions.}
-\begin{itemize}[leftmargin=1.4em]
+\begin{itemize}
 \item \textbf{(C1)} The first transparent, no-trusted-setup zero-knowledge
 construction over the \textbf{unmodified IETF SD-JWT VC} format---new circuits for its
 JSON/JWS/base64url/salted-hash structure---generalized to ISO mdoc through a shared
@@ -199,7 +198,7 @@ context} $\mathit{ctx}$ is a public string scoping a nullifier; the nullifier is
 per-context.
 
 \subsection{Trust and adversary model}
-\begin{itemize}[leftmargin=1.4em]
+\begin{itemize}
 \item \textbf{No trusted setup.} The scheme is transparent: the only public
 parameters are a collision-resistant hash $H$ (SHA-256, modeled as a random oracle for
 Fiat--Shamir) and a commitment scheme. There is no common reference string and hence
@@ -219,7 +218,7 @@ and proven in zero knowledge, never revealed.
 \end{itemize}
 
 \subsection{Security goals (informal)}\label{sec:goals}
-\begin{enumerate}[leftmargin=1.6em]
+\begin{enumerate}
 \item \textbf{Completeness.}
 \item \textbf{Soundness / credential unforgeability.}
 \item \textbf{Selective-disclosure zero-knowledge.}
@@ -283,7 +282,7 @@ observes $s$ or $r$}.
 \paragraph{Presentation.} For a verifier-chosen context the prover takes
 $\mathit{ctx\_hash}=\mathsf{SHA256}(\mathit{ctx})$ as a public input and proves, in
 zero-knowledge:
-\begin{enumerate}[leftmargin=1.6em,itemsep=0pt]
+\begin{enumerate}
 \item \emph{membership} --- $\mathsf{SHA256}(\text{commitment disclosure})\in\texttt{\_sd}$;
 \item \emph{structure} --- the disclosure decodes to the JSON triple \texttt{[salt, "pseudonym\_commitment", C]};
 \item \emph{decoding} --- the base64url value decodes to the 32-byte $C$;
@@ -340,7 +339,7 @@ per-feature blocks. Circuits are compiled once and cached (zstd).}
 \section{Security Analysis}\label{sec:security}
 
 \subsection{Building blocks and assumptions}
-\begin{itemize}[leftmargin=1.4em]
+\begin{itemize}
 \item \textbf{Issuer signature} $\mathsf{Sig}$ over the credential (ECDSA-P256),
 EUF-CMA (ECDSA in GGM+ROM).
 \item \textbf{Commitment} $\mathsf{COM}$, computationally hiding and binding,
@@ -358,7 +357,7 @@ in the ROM), knowledge-sound and zero-knowledge, no setup.
 A presentation is a $\mathsf{NIZK}$ for the relation $\mathcal{R}$ on public statement
 $x=(\mathit{ipk},\mathit{ctx},N,D,\phi,\mathit{rinfo})$ and witness
 $w=(\mathit{cred},\sigma,s,r,A,\pi_{\mathrm{rev}})$. $\mathcal{R}(x,w)=1$ iff:
-\begin{enumerate}[leftmargin=1.6em,itemsep=0pt]
+\begin{enumerate}
 \item $\mathsf{SigVer}(\mathit{ipk},\mathit{cred},\sigma)=1$ --- valid issuer signature
 over the unmodified standard credential;
 \item a signed attribute equals $C=\mathsf{Commit}(s;r)$;
