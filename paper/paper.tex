@@ -843,9 +843,11 @@ single-shot presentation that wallets actually perform.
 SHA-256 commitment, and knowledge-soundness of a hash-based argument in the
 random-oracle model; unlike Groth16-based systems there is no setup-integrity
 assumption. The random-oracle heuristic underlies both Fiat--Shamir and the blind
-nullifier. Our theorems are asymptotic; the concrete soundness and knowledge error are
-those of longfellow's Ligero+sumcheck instantiation over $\mathrm{GF}(2^{128})$, adopted
-unchanged and not re-derived here. As longfellow is recent, that concrete analysis has a
+nullifier. Our theorems are asymptotic; concretely we adopt longfellow's v7 Ligero
+parameters---132 columns opened at rate $1/7$ over $\mathrm{GF}(2^{128})$, reported at
+$\approx$109-bit statistical soundness~\cite{frigo2024longfellow,libzk-draft}---atop
+SHA-256 Merkle commitments and Fiat--Shamir in the ROM, and do not re-derive these
+bounds. As longfellow is recent, that concrete analysis has a
 short cryptanalytic track record---an inherited caveat we state rather than resolve.
 \paragraph{Proof size.} Transparent (hash-based) proofs are larger
 ($\approx$350--390\,KB) than pairing-based SNARKs; this is the price of removing the
