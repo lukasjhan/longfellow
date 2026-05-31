@@ -22,6 +22,8 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc}
 \usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\setlength{\emergencystretch}{1em}
 
 % comparison-table marks
 \newcommand{\cmark}{\ding{51}}          % yes
@@ -406,8 +408,9 @@ remain hidden.
 
 \subsection{Definitions and theorems}
 We state each property as a game; $\mathsf{negl}$ is negligible in the security
-parameter $\lambda$. Proof sketches are given; full proofs are deferred to the
-appendix. \TODO{tighten games to pseudocode for camera-ready.}
+parameter $\lambda$. Proof sketches are given here; the two load-bearing games
+(credential soundness and issuer-untraceability) are restated in pseudocode with
+fuller proofs in Appendix~\ref{app:proofs}.
 
 \begin{theorem}[Completeness]\label{thm:complete}
 If $\mathit{cred}$ is validly issued, non-revoked, and satisfies $(D,\phi)$, an honest
@@ -558,7 +561,9 @@ in proof size---the extra commitment-opening and nullifier are two SHA-256 block
 against the credential's signature and disclosure hashing. \emph{SD-JWT VC vs.\ mdoc:}
 mdoc is $\approx$1.9$\times$ faster, tracking hash-circuit size ($\approx$95k vs.\
 $\approx$190k inputs); SD-JWT VC's base64url/JSON parsing roughly doubles the SHA-256
-work relative to mdoc's CBOR---the first concrete quantification of this cost.
+work relative to mdoc's CBOR---the first concrete quantification of this cost. (We omit
+a standalone mdoc base row: the nullifier block adds under 6\%, so an mdoc base lies
+within a few percent of the +nullifier figure.)
 \emph{Revocation} adds constant, list-independent overhead: the signature circuit grows
 from 3{,}739 to 5{,}288 inputs (the in-circuit CRA ECDSA) and the bundle by
 $\approx$15\,KB, while prove/verify move within noise. \emph{Proof size} is
@@ -575,7 +580,33 @@ unlinkable presentations, each a $\approx$1--2\,s proof with no issuer interacti
 Beyond cost, the two differ in privacy: batch issuance yields only
 verifier-unlinkability and leaves the issuer able to correlate, whereas our
 presentations are unlinkable to the issuer as well (Theorem~\ref{thm:untrace}).
-\TODO{add issuer-side cost model / Table 3.}
+
+\begin{table}[t]\centering\small
+\caption{Cost to support $k$ unlinkable presentations from one logical credential
+(analytical). Batch issuance trades cheap presentations for $O(k)$ issuance/storage and
+issuer-linkability; we trade a per-presentation proof for $O(1)$ issuance and full
+unlinkability.}
+\label{tab:batch}
+\begin{tabular}{@{}lll@{}}
+\toprule
+ & Batch issuance & This work \\
+\midrule
+Issuer signatures (issuance)  & $k$                       & $1$ \\
+Holder storage                & $k$ credentials           & $1$ credential \\
+Holder per-presentation       & forward sig.\ ($\approx$0)& $1$ ZK proof ($\approx$1--2\,s) \\
+Verifier per-presentation     & $1$ sig.\ verify          & $1$ ZK verify ($\approx$0.5--0.8\,s) \\
+Issuer online at presentation & no                        & no \\
+Unlinkability                 & verifier only             & verifier $+$ issuer \\
+Presentations beyond $k$      & linkable / must refill    & unbounded \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:batch} summarizes the trade. Batch issuance is cheaper per presentation
+but bounded: once the $k$ pre-issued credentials are spent the holder must
+re-provision, and the issuer can still correlate across presentations. We instead pay a
+per-presentation proof, but issuance and storage are $O(1)$, presentations are
+unbounded, and unlinkability extends to the issuer.
 
 \subsection{Threats to validity}
 Measurements are from a single x86 desktop; mobile proving (the deployment target)
@@ -715,6 +746,69 @@ both formats---at practical cost (sub-2\,s proving, sub-second verification) and
 change to issuers or devices. The blind nullifier, which even the issuer cannot trace
 yet which costs under 5\% over a plain nullifier, closes the gap that batch issuance and
 prior zero-knowledge systems leave open.
+
+\appendix
+\section{Pseudocode games and full proofs}\label{app:proofs}
+
+We restate the two load-bearing properties as games and give fuller proofs; the
+remaining properties (Theorems~\ref{thm:complete},~\ref{thm:zk},~\ref{thm:nullunique},~\ref{thm:revsound},~\ref{thm:revpriv})
+follow from the body sketches.
+
+\paragraph{Game $\mathsf{Snd}$ (credential soundness).}
+\begin{enumerate}
+\item The challenger runs issuer key generation $(\mathit{isk},\mathit{ipk})$, gives $\mathit{ipk}$ to $\mathcal{A}$, and sets $Q\gets\emptyset$.
+\item $\mathcal{A}$ may query $\mathsf{Issue}(\cdot)$: the challenger signs the requested credential body, returns the credential, and adds it to $Q$.
+\item $\mathcal{A}$ outputs $(x^*,\pi^*)$ and wins iff $\mathsf{Ver}(x^*,\pi^*)=1$ and no $\mathit{cred}\in Q$ is both validly signed and consistent with $x^*$ (disclosed values, predicate, non-revocation).
+\end{enumerate}
+
+\begin{proof}[Full proof of Theorem~\ref{thm:sound}]
+Let $\mathcal{A}$ win $\mathsf{Snd}$ with probability $\epsilon$. By knowledge-soundness
+of $\mathsf{NIZK}$ there is an extractor $\mathcal{E}$ that, from $\mathcal{A}$'s
+accepting $(x^*,\pi^*)$, outputs a witness
+$w^*=(\mathit{cred}^*,\sigma^*,s^*,r^*,A^*,\pi_{\mathrm{rev}}^*)$ with
+$\mathcal{R}(x^*,w^*)=1$ up to knowledge error $\kappa$. Clause~1 of $\mathcal{R}$ gives
+$\mathsf{SigVer}(\mathit{ipk},\mathit{cred}^*,\sigma^*)=1$. Two cases.
+(i)~$\mathit{cred}^*\notin Q$: then $(\mathit{cred}^*,\sigma^*)$ is a valid forgery; an
+EUF-CMA adversary that relays $\mathsf{Issue}$ queries to its signing oracle and outputs
+$(\mathit{cred}^*,\sigma^*)$ wins with probability $\epsilon-\kappa$.
+(ii)~$\mathit{cred}^*\in Q$: then $\mathit{cred}^*$ is validly signed, and clauses~2--6
+bind the disclosed values, the predicate output, the committed nullifier seed (via
+binding of $\mathsf{COM}$), and the non-revocation fact to $\mathit{cred}^*$; hence
+$\mathit{cred}^*$ is consistent with $x^*$, contradicting the win condition unless
+$\mathsf{COM}$-binding is broken (probability $\le\beta$). Therefore
+$\epsilon\le\mathsf{Adv}^{\mathrm{euf}}+\beta+\kappa$, which is negligible.
+\end{proof}
+
+\paragraph{Game $\mathsf{Untr}$ (issuer-untraceability).}
+\begin{enumerate}
+\item $\mathcal{A}$, playing the issuer, outputs $\mathit{ipk}$.
+\item For $j=1,\dots,q$ the honest holder samples $s_j,r_j\gets\{0,1\}^{256}$ and sends $C_j=\mathsf{SHA256}(s_j\|r_j)$; $\mathcal{A}$ returns a signature on a credential embedding $C_j$ (or aborts session $j$).
+\item $\mathcal{A}$ outputs two completed indices $i_0,i_1$ and a context $\mathit{ctx}^*$ not previously used by $i_0$ or $i_1$.
+\item The challenger picks $b\gets\{0,1\}$ and returns a presentation of credential $i_b$ under $\mathit{ctx}^*$, including $N_b=\mathsf{SHA256}\!\big(s_{i_b}\,\|\,\mathsf{SHA256}(\mathit{ctx}^*)\big)$.
+\item $\mathcal{A}$ outputs $b'$ and wins iff $b'=b$.
+\end{enumerate}
+
+\begin{proof}[Full proof of Theorem~\ref{thm:untrace}]
+We bound $\mathcal{A}$'s advantage by hybrids.
+$\mathsf{H}_0$ is the real game.
+$\mathsf{H}_1$ replaces the challenge presentation's proof by $\mathsf{Sim}(x)$ for
+$x=(\mathit{ipk},\mathsf{SHA256}(\mathit{ctx}^*),N_b,D,\phi,\mathit{rinfo})$; by
+zero-knowledge $|\Pr[\mathsf{H}_0]-\Pr[\mathsf{H}_1]|\le\mathsf{Adv}^{\mathrm{zk}}$, and
+now the only $b$-dependent values in $\mathcal{A}$'s view are the issuance commitments
+$C_{i_0},C_{i_1}$ and the tag $N_b$.
+$\mathsf{H}_2$ replaces $C_{i_0},C_{i_1}$ with $\mathsf{SHA256}$ of independent uniform
+strings; by hiding of the SHA-256 commitment in the ROM (each $r_i$ is a fresh $256$-bit
+value) $|\Pr[\mathsf{H}_1]-\Pr[\mathsf{H}_2]|\le 2\,\mathsf{Adv}^{\mathrm{hide}}$, after
+which $\mathcal{A}$'s issuance view is independent of the true seeds.
+$\mathsf{H}_3$ replaces $N_b$ by a uniform $256$-bit string. In $\mathsf{H}_2$ the seed
+$s_{i_b}$ is hidden from $\mathcal{A}$, so it queries the random oracle at
+$\big(s_{i_b}\|\mathsf{SHA256}(\mathit{ctx}^*)\big)$ with probability at most
+$q_H/2^{256}$; absent that query $N_b$ is uniform, so
+$|\Pr[\mathsf{H}_2]-\Pr[\mathsf{H}_3]|\le q_H/2^{256}$. In $\mathsf{H}_3$ the view is
+independent of $b$, hence $\Pr[\mathsf{H}_3]=\tfrac12$. Collecting terms, the advantage
+is at most $\mathsf{Adv}^{\mathrm{zk}}+2\,\mathsf{Adv}^{\mathrm{hide}}+q_H/2^{256}$,
+which is negligible.
+\end{proof}
 
 \bibliographystyle{plain}
 \bibliography{refs}

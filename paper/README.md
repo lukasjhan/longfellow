@@ -48,10 +48,12 @@ Measured on AMD Ryzen 7 2700X (8C/16T). Raw numbers: `playground/fixtures/eval-r
 - [x] **Idemix / U-Prove** — facts confirmed (CL/Strong-RSA/multi-show; Brands/DL/one-show); primary sources cited.
 - [x] §2 Background, §6 Implementation, §9 Discussion, §10 Conclusion — filled.
 - [x] **Figure 1** — split-circuit seam (sig $\mathbb{F}_p$ ⊕ hash $\mathrm{GF}(2^{128})$, MAC link) + 3 feature blocks (TikZ).
-- [ ] Deployment citations: verify EU 2024/1183, AAMVA mDL, RFC 9901 number/section against primary docs.
-- [ ] (optional) mdoc-base row, formal gate counts, a mobile + server datapoint, batch-issuance issuer-side cost model (Table 3).
-- [ ] Tighten security games to pseudocode; full proofs in appendix.
-- [ ] Remaining `\TODO` in §7.4 (issuer-side cost model / Table 3).
+- [x] **Table 3** (§7.4) — analytical batch-issuance vs. this-work cost model.
+- [x] Security games restated in pseudocode; full proofs of soundness + issuer-untraceability in Appendix A.
+- [x] RFC 9901 confirmed (SD-JWT, IETF Internet Standard, 2025); mdoc base addressed by a note (nullifier adds <6%).
+- [x] No `\TODO` markers remain in the document.
+- [ ] Confirm EU 2024/1183 (eIDAS 2.0) and AAMVA mDL Guidelines citation details against the primary documents.
+- [ ] Needs external resources only: formal gate/constraint counts (circuit-compiler instrumentation) and a mobile + server-class datapoint.
 
 ## Honesty guardrails (do not drop)
 - The signed-range revocation **mechanism** is longfellow's (`MdocRevocationSpan`); our
