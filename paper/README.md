@@ -7,20 +7,36 @@ Target venue: PETS (1순위) / WPES / Financial Crypto.
 ## Files
 - `paper.tex` — full single-file skeleton (all sections, merged from the markdown drafts).
 - `refs.bib` — bibliography (some fields marked `[VERIFY]` pending camera-ready).
-- `Makefile` — `make` to build (needs a TeX distribution).
+- `build.sh` — build `paper.pdf` via a TeX Live docker image (no local TeX; see "Build").
+- `Makefile` — `make` to build (needs a local TeX distribution).
 - `make-twocol.sh` — generate a throwaway two-column preview (see "Two-column layout").
 - `DESIGN-NOTES.md` — deliberate design decisions + reviewer rationale (notation, device binding, uniqueness scope, revocation attribution).
 
 ## Build
-This machine has **no TeX toolchain**. Two options:
-1. **Overleaf** — upload `paper.tex` + `refs.bib`, compile with pdfLaTeX.
-2. **Local** — install TeX, then `make`:
+This machine has **no local TeX toolchain**, but `docker` is available, so the
+default is to build inside a TeX Live container — no install, no `sudo`.
+
+1. **Docker (recommended here)** — `./build.sh` → `paper.pdf`. The script runs:
+   ```sh
+   docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/work -w /work \
+     --entrypoint /bin/sh ghcr.io/xu-cheng/texlive-small:latest \
+     -c 'pdflatex paper && bibtex paper && pdflatex paper && pdflatex paper'
    ```
-   sudo apt-get install texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
-   make            # pdflatex → bibtex → pdflatex ×2
-   ```
-The preamble is portable (`article` + amsmath/amsthm/booktabs/pifont/hyperref).
-To target a venue, swap `\documentclass` for the PoPETs/ACM class.
+   - `-u $(id -u):$(id -g)` keeps `paper.pdf` user-owned (not root); `HOME=/tmp`
+     gives the container a writable font cache; `-v "$PWD":/work` mounts this folder.
+   - The `texlive-small` image already has pdflatex + bibtex + every package the
+     paper uses (amsmath, booktabs, pifont, tikz, microtype, hyperref, …) **except**
+     `enumitem`, which is why the preamble avoids it.
+   - The image is pulled once (`docker pull ghcr.io/xu-cheng/texlive-small:latest`),
+     ~hundreds of MB; subsequent builds are offline.
+   - `./make-twocol.sh` reuses the same container for the two-column preview.
+2. **Local TeX** — if you have a TeX distribution, just `make` (same pdflatex→bibtex→
+   pdflatex×2 pipeline). To install on Debian/Ubuntu:
+   `sudo apt-get install texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended`.
+3. **Overleaf** — upload `paper.tex` + `refs.bib`, compile with pdfLaTeX.
+
+The preamble is portable (`article` + amsmath/amsthm/booktabs/pifont/tikz/microtype/
+hyperref). To target a venue, swap `\documentclass` for the PoPETs/ACM/IEEE class.
 
 ## Two-column layout
 
