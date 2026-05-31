@@ -206,13 +206,18 @@ per-context.
 $N=H_{\mathsf{nul}}(s,\mathit{ctx})$ collides exactly when $\mathit{ctx}$ collides,
 cross-scope unlinkability is a property of the \emph{ctx discipline}, not of the proof
 alone, and we require two things of it. \emph{(i)~Domain separation:} $\mathit{ctx}$
-binds a verifier's scope and an epoch, so distinct scopes yield independent nullifiers.
+binds the verifier's scope, so distinct scopes yield independent nullifiers.
 \emph{(ii)~Authorization:} the wallet accepts a $\mathit{ctx}$ only from a party that
 can demonstrate authority over that scope; a $\mathit{ctx}$ presented by an unauthorized
 party is treated as an attempt to link and is ignored. Under this discipline a repeat
 presentation to the \emph{same verifier under the same scope} deliberately yields the
 same $N$---the duplication signal the application relies on (one vote per election, one
-account per service)---while no other party can induce that collision. This
+account per service)---while no other party can induce that collision. Whether that
+signal is persistent or periodic is the application's choice of $\mathit{ctx}$
+granularity: an epoch-free $\mathit{ctx}$ deduplicates a scope indefinitely (one account
+per service), whereas folding an epoch into $\mathit{ctx}$ confines dedup to one period
+and refreshes it thereafter (one vote per election)---so the epoch is an optional
+namespace knob, not part of domain separation, which needs only the scope. This
 authorization is not new infrastructure: it is the verifier (relying-party)
 authentication that OpenID4VP and the EUDI ARF~\cite{eudi-arf} already require---e.g., a
 relying-party registration certificate scoping what a verifier may request---so the
@@ -829,7 +834,10 @@ single-shot presentation that wallets actually perform.
 SHA-256 commitment, and knowledge-soundness of a hash-based argument in the
 random-oracle model; unlike Groth16-based systems there is no setup-integrity
 assumption. The random-oracle heuristic underlies both Fiat--Shamir and the blind
-nullifier.
+nullifier. Our theorems are asymptotic; the concrete soundness and knowledge error are
+those of longfellow's Ligero+sumcheck instantiation over $\mathrm{GF}(2^{128})$, adopted
+unchanged and not re-derived here. As longfellow is recent, that concrete analysis has a
+short cryptanalytic track record---an inherited caveat we state rather than resolve.
 \paragraph{Proof size.} Transparent (hash-based) proofs are larger
 ($\approx$350--390\,KB) than pairing-based SNARKs; this is the price of removing the
 trusted setup. At this size a proof does not fit a QR code; presentment assumes a
